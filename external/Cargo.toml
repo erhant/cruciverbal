@@ -1,0 +1,15 @@
+[package]
+name = "cruciverbal-external"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+cruciverbal-core = { path = "../core" }
+csv = "1.3"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
+bincode = "1.3"

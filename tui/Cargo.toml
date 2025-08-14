@@ -1,0 +1,13 @@
+[package]
+name = "cruciverbal-tui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+cruciverbal-core = { path = "../core" }
+cruciverbal-external = { path = "../external" }
+ratatui = "0.28"
+crossterm = "0.28"
+serde.workspace = true
