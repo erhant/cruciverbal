@@ -6,8 +6,19 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-cruciverbal-core = { path = "../core" }
-cruciverbal-external = { path = "../external" }
-ratatui = "0.28"
-crossterm = "0.28"
+color-eyre = "0.6.3"
+ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
+crossterm = { version = "0.29.0", features = ["event-stream"] }
+futures = "0.3.31"
+
+# global workspace dependencies
 serde.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+
+# inter-workspace dependencies
+# cruciverbal-core = { path = "../core" }
+cruciverbal-providers = { path = "../providers" }
+
+[lints.clippy]
+uninlined_format_args = "allow"

@@ -1,7 +1,12 @@
-use cruciverbal_tui::app::App;
+use cruciverbal_tui::App;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut app = App::new()?;
-    app.run()?;
-    Ok(())
+#[tokio::main]
+async fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
+
+    let terminal = ratatui::init();
+    let app = App::new()?;
+    let result = app.run(terminal).await;
+    ratatui::restore();
+    result
 }
