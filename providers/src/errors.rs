@@ -2,6 +2,7 @@ pub enum ProviderError {
     FetchError(reqwest::Error),
     SerdeParseError(serde_json::Error),
     PuzParseError(puz_parse::PuzError),
+    Other(String),
 }
 
 impl From<reqwest::Error> for ProviderError {
@@ -22,12 +23,19 @@ impl From<puz_parse::PuzError> for ProviderError {
     }
 }
 
+impl From<std::num::ParseIntError> for ProviderError {
+    fn from(err: std::num::ParseIntError) -> Self {
+        ProviderError::Other(format!("Integer parse error: {}", err.to_string()))
+    }
+}
+
 impl std::fmt::Display for ProviderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProviderError::FetchError(e) => write!(f, "Fetch error: {}", e),
             ProviderError::SerdeParseError(e) => write!(f, "Serde parse error: {}", e),
             ProviderError::PuzParseError(e) => write!(f, "PUZ parse error: {}", e),
+            ProviderError::Other(e) => write!(f, "Other error: {}", e),
         }
     }
 }

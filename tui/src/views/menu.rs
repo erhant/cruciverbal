@@ -26,6 +26,7 @@ impl MenuItem {
     pub const ALL: [MenuItem; 2] = [MenuItem::Play, MenuItem::Exit];
     pub fn fmt(&self) -> String {
         match self {
+            // TODO: may add `New Game`, `Load Game`, `Settings`, etc.
             MenuItem::Play => "Play".to_string(),
             MenuItem::Exit => "Exit".to_string(),
         }

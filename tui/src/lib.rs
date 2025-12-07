@@ -4,6 +4,9 @@ pub use app::{App, AppView};
 pub mod views;
 pub use views::*;
 
+pub mod widgets;
+pub use widgets::*;
+
 // TODO:
 // in the player:
 // - ^S to save progress (locally)
