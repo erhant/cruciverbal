@@ -45,8 +45,10 @@ impl App {
         ]);
         let [header_area, menu_area, footer_area] = vertical.areas(area);
 
-        frame.render_widget(Paragraph::new("Cruciverbal").centered(), header_area);
+        let [_, menu_area, _] =
+            Layout::horizontal(Constraint::from_percentages([40, 20, 40])).areas(menu_area);
 
+        frame.render_widget(Paragraph::new("Cruciverbal").centered(), header_area);
         // Menu items
         let menu_items: Vec<ListItem> = MenuItem::ALL
             .iter()
@@ -55,7 +57,7 @@ impl App {
                 ListItem::new(item.fmt()).style(if i == self.state.menu.sel {
                     Style::default()
                         .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                        .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK)
                 } else {
                     Style::default()
                 })

@@ -3,8 +3,9 @@ use color_eyre::eyre::Result;
 use crossterm::event::EventStream;
 use std::time::Duration;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum AppView {
+    #[default]
     Menu,
     Game,
 }
@@ -33,17 +34,18 @@ pub struct App {
 
 impl App {
     /// Construct a new instance of [`App`].
-    pub fn new() -> Result<Self> {
-        Self::new_at_view(AppView::Menu)
-    }
-
-    pub fn new_at_view(view: AppView) -> Result<Self> {
-        Ok(Self {
+    pub fn new() -> Self {
+        Self {
             is_running: false,
             event_stream: EventStream::new(),
-            view,
+            view: AppView::Menu,
             state: AppState::default(),
-        })
+        }
+    }
+
+    /// Set the active view.
+    pub fn set_view(&mut self, view: AppView) {
+        self.view = view;
     }
 
     /// Run the application's main loop.
@@ -58,7 +60,13 @@ impl App {
             terminal.draw(|frame| self.draw(frame))?;
 
             // process ticks
-            // TODO: no ticks yet
+            if self.state.game.puzzle.is_none() {
+                // FIXME: mock download game
+                self.state.game.puzzle =
+                    cruciverbal_providers::providers::lovatts_cryptic::download("2025-12-08")
+                        .await
+                        .ok();
+            }
 
             // handle events with timeout to allow animation updates
             tokio::select! {
@@ -110,7 +118,7 @@ impl App {
 
                     match &self.view.clone() {
                         AppView::Menu => self.handle_menu_input(key),
-                        AppView::Game => todo!(),
+                        AppView::Game => self.handle_game_input(key),
                     }
                 }
                 Event::Mouse(_) => {} // no mouse events

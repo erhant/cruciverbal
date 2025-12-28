@@ -4,15 +4,13 @@ use std::collections::HashMap;
 
 /// Download the Lovatt's Cryptic crossword for the given date.
 ///
-/// # Arguments
+/// ## Arguments
 /// - `date` - Date string in "yyyy-mm-dd" format (TODO: accept chrono or something)
 pub async fn download(date: &str) -> Result<puz_parse::Puzzle, ProviderError> {
     // PSID 100000160 is used for Lovatt's cryptic crossword.
     let psid = 100000160;
-    let url = format!(
-        "https://data.puzzlexperts.com/puzzleapp-v3/data.php?date={}&psid={}",
-        date, psid
-    );
+    let url =
+        format!("https://data.puzzlexperts.com/puzzleapp-v3/data.php?date={date}&psid={psid}");
     // example:
     // https://data.puzzlexperts.com/puzzleapp-v3/data.php?date=2025-15-12&psid=100000160
 
@@ -52,7 +50,6 @@ pub async fn download(date: &str) -> Result<puz_parse::Puzzle, ProviderError> {
 ///   - `start_k0=0`, (starting column)
 /// (and repeating for word1, word2, etc.)
 fn parse(data: &str) -> Result<puz_parse::Puzzle, ProviderError> {
-    println!("{}", data);
     #[derive(Default, Debug)]
     struct ClueWord {
         word: String,
@@ -186,13 +183,13 @@ fn parse(data: &str) -> Result<puz_parse::Puzzle, ProviderError> {
     // split the hashmap into across and down clues
     let mut across_clues = HashMap::<u16, String>::new();
     let mut down_clues = HashMap::<u16, String>::new();
-    for clueword in cluewords.values() {
+    for clueword in cluewords.into_values() {
         let clue_no = *clue_number_map
             .get(&(clueword.row * (height as usize) + clueword.col))
             .unwrap();
         match clueword.direction {
-            Direction::Across => across_clues.insert(clue_no, clueword.clue.clone()),
-            Direction::Down => down_clues.insert(clue_no, clueword.clue.clone()),
+            Direction::Across => across_clues.insert(clue_no, clueword.clue),
+            Direction::Down => down_clues.insert(clue_no, clueword.clue),
         };
     }
 
@@ -202,7 +199,7 @@ fn parse(data: &str) -> Result<puz_parse::Puzzle, ProviderError> {
             height,
             width,
             author: "Lovatt's Cryptic".to_string(),
-            copyright: "Copyright 2025 Lovatts Media Group".to_string(),
+            copyright: "Copyright 2025 Lovatts Media Group".to_string(), // TODO: ???
             notes: format!("Puzzle ID: {}", id),
             version: "1.4".to_string(),
             is_scrambled: false,
