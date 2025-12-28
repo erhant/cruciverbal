@@ -1,12 +1,23 @@
 use crate::{App, AppView};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Layout};
+use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+
 mod grid;
 use grid::*;
 
 #[derive(Default, Debug)]
 pub struct GameState {
     pub puzzle: Option<puz_parse::Puzzle>,
+
+    /* scrollbar stuff */
+    /// Current scroll position (vertical, horizontal).
+    pub scroll_cur: (u16, u16),
+    /// Maximum scroll position (vertical, horizontal), be careful about this as it may crash the app
+    /// if set incorrectly.
+    pub scroll_max: (u16, u16),
+    /// Scrollbar state for the [`Scrollbar`] widget (vertical, horizontal).
+    pub scroll_bar: (ScrollbarState, ScrollbarState),
 }
 
 impl App {
@@ -16,39 +27,113 @@ impl App {
         };
 
         let area = frame.area();
-        let col_constraints = (0..puzzle.info.width).map(|_| Constraint::Length(5));
-        let row_constraints = (0..puzzle.info.height).map(|_| Constraint::Length(5));
-
-        // spacing with overlap so that borders are joined
-        let horizontal = Layout::horizontal(col_constraints);
-        let vertical = Layout::vertical(row_constraints);
-
-        let rows = vertical.split(area);
-        let grid_areas = rows.iter().flat_map(|&row| horizontal.split(row).to_vec());
         let puzzle_cells = puzzle
             .grid
             .solution
-            .join("")
-            .chars()
-            .map(|c| {
-                if c == '.' {
-                    PuzzleCell::new_filled()
-                } else {
-                    PuzzleCell::new_valued(c)
-                }
+            .iter()
+            .map(|s| {
+                s.chars()
+                    .map(|c| PuzzleCell::from(c))
+                    .collect::<Vec<PuzzleCell>>()
             })
-            .collect::<Vec<PuzzleCell>>();
-        assert!(puzzle_cells.len() == puzzle.info.width as usize * puzzle.info.height as usize);
+            .collect::<Vec<Vec<PuzzleCell>>>();
+        let puzzle_grid = PuzzleGrid::new(puzzle_cells);
+        assert!(puzzle_grid.height() == puzzle.info.height);
+        assert!(puzzle_grid.width() == puzzle.info.width);
 
-        // for (cell, area) in puzzle_cells.iter().zip(grid_areas) {
-        //     frame.render_widget(cell.to_par(), area);
-        // }
+        // render the puzzle grid with scrollbars
+        let mut par = puzzle_grid.to_par();
+        let (width, height) = (area.width, area.height);
+
+        // calculate vertical scroll bounds
+        let num_lines = par.line_count(width.saturating_sub(2)); // account for vertical scrollbar
+        let max_scroll_v = num_lines.saturating_sub(height.saturating_sub(1) as usize); // account for horizontal scrollbar
+
+        // calculate horizontal scroll bounds
+        // each cell is 5 chars wide with 1 overlap, so total width is `num_cols * 4 + 1` (for border)
+        let content_width = (puzzle_grid.width() as usize * 4 + 1) as u16;
+        let max_scroll_h = content_width.saturating_sub(width.saturating_sub(2)) as usize; // account for scrollbars
+
+        self.state.game.scroll_max = (max_scroll_v as u16, max_scroll_h as u16);
+
+        // sanity check
+        self.state.game.scroll_cur.0 = self
+            .state
+            .game
+            .scroll_cur
+            .0
+            .min(self.state.game.scroll_max.0);
+        self.state.game.scroll_cur.1 = self
+            .state
+            .game
+            .scroll_cur
+            .1
+            .min(self.state.game.scroll_max.1);
+
+        par = par.scroll((self.state.game.scroll_cur.0, self.state.game.scroll_cur.1));
+        frame.render_widget(par, area);
+
+        // update and render vertical scrollbar
+        self.state.game.scroll_bar.0 = self
+            .state
+            .game
+            .scroll_bar
+            .0
+            .content_length(self.state.game.scroll_max.0 as usize)
+            .position(self.state.game.scroll_cur.0 as usize);
+        frame.render_stateful_widget(
+            Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(Some("↑"))
+                .end_symbol(Some("↓")),
+            area,
+            &mut self.state.game.scroll_bar.0,
+        );
+
+        // update and render horizontal scrollbar
+        self.state.game.scroll_bar.1 = self
+            .state
+            .game
+            .scroll_bar
+            .1
+            .content_length(self.state.game.scroll_max.1 as usize)
+            .position(self.state.game.scroll_cur.1 as usize);
+        frame.render_stateful_widget(
+            Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
+                .begin_symbol(Some("←"))
+                .end_symbol(Some("→")),
+            area,
+            &mut self.state.game.scroll_bar.1,
+        );
     }
 
     pub fn handle_game_input(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => {
                 self.is_running = false;
+            }
+            // scroll up (vertical offset shrinks)
+            KeyCode::Up => {
+                if self.state.game.scroll_cur.0 > 0 {
+                    self.state.game.scroll_cur.0 -= 1;
+                }
+            }
+            // scroll down (vertical offset grows)
+            KeyCode::Down => {
+                if self.state.game.scroll_cur.0 < self.state.game.scroll_max.0 {
+                    self.state.game.scroll_cur.0 += 1;
+                }
+            }
+            // scroll left (horizontal offset shrinks)
+            KeyCode::Left => {
+                if self.state.game.scroll_cur.1 > 0 {
+                    self.state.game.scroll_cur.1 -= 1;
+                }
+            }
+            // scroll right (horizontal offset grows)
+            KeyCode::Right => {
+                if self.state.game.scroll_cur.1 < self.state.game.scroll_max.1 {
+                    self.state.game.scroll_cur.1 += 1;
+                }
             }
             _ => {}
         }
