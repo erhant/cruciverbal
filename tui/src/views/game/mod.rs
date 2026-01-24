@@ -346,9 +346,8 @@ impl App {
         let grid_content_width = (grid.width() as u16 * 4) + 1;
         let grid_content_height = (grid.height() as u16 * 4) + 1;
 
-        // Total content: header (3) + grid + footer (3)
-        // Header/footer have 1 line content + 2 lines border (top+bottom shared with grid)
-        let total_height = 3 + grid_content_height + 3;
+        // Total content: header (3) + padding (1) + grid + padding (1) + footer (3)
+        let total_height = 3 + 1 + grid_content_height + 1 + 3;
         let total_width = grid_content_width.max(40); // minimum width for header/footer text
 
         let full_area = frame.area();
@@ -363,17 +362,19 @@ impl App {
             .flex(Flex::Center)
             .areas(centered_area);
 
-        // Split into 3 areas: top bar, grid, bottom bar
+        // Split into 5 areas: top bar, padding, grid, padding, bottom bar
         let layout = Layout::vertical([
             Constraint::Length(3), // top bar with borders
+            Constraint::Length(1), // padding
             Constraint::Min(1),    // grid area
+            Constraint::Length(1), // padding
             Constraint::Length(3), // bottom bar with borders
         ])
         .split(centered_area);
 
         let top_area = layout[0];
-        let grid_area = layout[1];
-        let bottom_area = layout[2];
+        let grid_area = layout[2];
+        let bottom_area = layout[4];
 
         // === TOP BAR ===
         self.draw_top_bar(frame, top_area);
@@ -386,11 +387,11 @@ impl App {
 
         // calculate vertical scroll bounds
         let content_height = (grid.height() as u16 * 4) + 1;
-        let max_scroll_v = content_height.saturating_sub(height.saturating_sub(1));
+        let max_scroll_v = content_height.saturating_sub(height);
 
         // calculate horizontal scroll bounds
         let content_width = (grid.width() as u16 * 4) + 1;
-        let max_scroll_h = content_width.saturating_sub(width.saturating_sub(1));
+        let max_scroll_h = content_width.saturating_sub(width);
 
         self.state.game.scroll_max = (max_scroll_v, max_scroll_h);
 
@@ -743,10 +744,35 @@ impl App {
             }
 
             // navigation: move selection with arrow keys
-            KeyCode::Up => self.move_selection(-1, 0),
-            KeyCode::Down => self.move_selection(1, 0),
-            KeyCode::Left => self.move_selection(0, -1),
-            KeyCode::Right => self.move_selection(0, 1),
+            // SHIFT + Arrow: jump to next empty cell in a different clue word
+            KeyCode::Up => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.jump_to_next_word(-1, 0);
+                } else {
+                    self.move_selection(-1, 0);
+                }
+            }
+            KeyCode::Down => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.jump_to_next_word(1, 0);
+                } else {
+                    self.move_selection(1, 0);
+                }
+            }
+            KeyCode::Left => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.jump_to_next_word(0, -1);
+                } else {
+                    self.move_selection(0, -1);
+                }
+            }
+            KeyCode::Right => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.jump_to_next_word(0, 1);
+                } else {
+                    self.move_selection(0, 1);
+                }
+            }
 
             // letter input: A-Z (and lowercase a-z)
             KeyCode::Char(c) if c.is_ascii_alphabetic() => {
@@ -761,7 +787,7 @@ impl App {
                 self.advance_to_next_cell();
             }
 
-            // backspace/delete: clear the current cell
+            // backspace/delete: clear the current cell and retreat
             KeyCode::Backspace | KeyCode::Delete => {
                 let (row, col) = self.state.game.sel;
                 if let Some(grid) = self.state.game.grid.as_mut() {
@@ -769,6 +795,8 @@ impl App {
                         cell.set_user_letter(None);
                     }
                 }
+                // move to previous cell in active direction
+                self.retreat_to_prev_cell();
             }
 
             _ => {}
@@ -855,6 +883,120 @@ impl App {
         self.ensure_selection_visible();
     }
 
+    /// Jump to the first empty cell in a different clue word in the given direction.
+    ///
+    /// Scans in the given direction until finding an empty cell that belongs to a different
+    /// clue word. Wraps rows/columns as needed. If nothing is found, selects the last
+    /// non-filled cell encountered.
+    fn jump_to_next_word(&mut self, row_delta: i32, col_delta: i32) {
+        let Some(grid) = self.state.game.grid.as_mut() else {
+            return;
+        };
+
+        let direction = self.state.game.active_direction;
+        let (cur_row, cur_col) = self.state.game.sel;
+        let height = grid.height() as i32;
+        let width = grid.width() as i32;
+
+        // Get the current cell's clue number for the movement direction
+        // For horizontal movement (left/right), use Across clue
+        // For vertical movement (up/down), use Down clue
+        let movement_direction = if col_delta != 0 {
+            Direction::Across
+        } else {
+            Direction::Down
+        };
+
+        let current_clue = grid
+            .get(cur_row, cur_col)
+            .and_then(|c| c.clue_no_for_direction(movement_direction));
+
+        let mut new_row = cur_row as i32 + row_delta;
+        let mut new_col = cur_col as i32 + col_delta;
+
+        // Track the last non-filled cell we've seen (as fallback)
+        let mut last_valid: Option<(usize, usize)> = None;
+        // Track if we've wrapped around completely
+        let start = (cur_row, cur_col);
+        let mut wrapped = false;
+
+        loop {
+            // Handle wrapping at grid boundaries
+            if new_row < 0 || new_row >= height || new_col < 0 || new_col >= width {
+                // Wrap based on movement direction
+                if col_delta != 0 {
+                    // Horizontal movement: wrap to next/prev row
+                    // Right (col_delta > 0): go to next row, start of row
+                    // Left (col_delta < 0): go to previous row, end of row
+                    new_row += col_delta.signum();
+                    new_col = if col_delta > 0 { 0 } else { width - 1 };
+                    // Handle row bounds
+                    if new_row < 0 {
+                        new_row = height - 1;
+                    } else if new_row >= height {
+                        new_row = 0;
+                    }
+                } else {
+                    // Vertical movement: wrap to next/prev column
+                    // Down (row_delta > 0): go to next column, top of column
+                    // Up (row_delta < 0): go to previous column, bottom of column
+                    new_col += row_delta.signum();
+                    new_row = if row_delta > 0 { 0 } else { height - 1 };
+                    // Handle column bounds
+                    if new_col < 0 {
+                        new_col = width - 1;
+                    } else if new_col >= width {
+                        new_col = 0;
+                    }
+                }
+                wrapped = true;
+            }
+
+            // Check if we've come back to start
+            if wrapped && (new_row as usize, new_col as usize) == start {
+                break;
+            }
+
+            if let Some(cell) = grid.get(new_row as usize, new_col as usize) {
+                if !cell.is_filled() {
+                    // Track this as a potential fallback
+                    last_valid = Some((new_row as usize, new_col as usize));
+
+                    // Check if this cell belongs to a different clue word
+                    let cell_clue = cell.clue_no_for_direction(movement_direction);
+
+                    // If current cell has no clue in this direction, or cell has different clue
+                    let is_different_word = match (current_clue, cell_clue) {
+                        (Some(cur), Some(cell)) => cur != cell,
+                        (None, Some(_)) => true,
+                        _ => false,
+                    };
+
+                    // Found an empty cell in a different word
+                    if is_different_word && cell.is_empty() {
+                        if grid.set_selection(new_row as usize, new_col as usize, direction) {
+                            self.state.game.sel = (new_row as usize, new_col as usize);
+                        }
+                        self.ensure_selection_visible();
+                        return;
+                    }
+                }
+            }
+
+            // Continue in the same direction
+            new_row += row_delta;
+            new_col += col_delta;
+        }
+
+        // If we didn't find an empty cell in a different word, go to last valid cell
+        if let Some((row, col)) = last_valid {
+            if grid.set_selection(row, col, direction) {
+                self.state.game.sel = (row, col);
+            }
+            self.ensure_selection_visible();
+        }
+    }
+
     /// Advance to the next empty cell in the active direction after entering a letter.
     ///
     /// - If direction is `Across`: move right, wrap to next row if at end
@@ -912,6 +1054,71 @@ impl App {
             }
 
             // move to next cell
+            new_row += row_delta;
+            new_col += col_delta;
+        }
+
+        // Update scroll position
+        self.ensure_selection_visible();
+    }
+
+    /// Retreat to the previous cell in the active direction (opposite of advance).
+    ///
+    /// - If direction is `Across`: move left, wrap to previous row if at start
+    /// - If direction is `Down`: move up, wrap to previous column if at start
+    fn retreat_to_prev_cell(&mut self) {
+        let Some(grid) = self.state.game.grid.as_mut() else {
+            return;
+        };
+
+        let direction = self.state.game.active_direction;
+        let (cur_row, cur_col) = self.state.game.sel;
+        let height = grid.height() as i32;
+        let width = grid.width() as i32;
+
+        // determine the delta based on direction (opposite of advance)
+        let (row_delta, col_delta): (i32, i32) = match direction {
+            Direction::Across => (0, -1),
+            Direction::Down => (-1, 0),
+        };
+
+        let mut new_row = cur_row as i32 + row_delta;
+        let mut new_col = cur_col as i32 + col_delta;
+
+        // try to find the previous non-filled cell
+        loop {
+            // check if we've gone past the grid boundary
+            if new_row < 0 || new_row >= height || new_col < 0 || new_col >= width {
+                // wrap to previous row/column
+                match direction {
+                    Direction::Across => {
+                        new_row -= 1;
+                        new_col = width - 1;
+                    }
+                    Direction::Down => {
+                        new_row = height - 1;
+                        new_col -= 1;
+                    }
+                }
+
+                // if we've wrapped past the entire grid, stop
+                if new_row < 0 || new_col < 0 {
+                    break;
+                }
+            }
+
+            // check if this cell is valid (not filled)
+            if let Some(cell) = grid.get(new_row as usize, new_col as usize) {
+                if !cell.is_filled() {
+                    // found a valid cell, update selection
+                    if grid.set_selection(new_row as usize, new_col as usize, direction) {
+                        self.state.game.sel = (new_row as usize, new_col as usize);
+                    }
+                    break;
+                }
+            }
+
+            // move to previous cell
             new_row += row_delta;
             new_col += col_delta;
         }
