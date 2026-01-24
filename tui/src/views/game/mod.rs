@@ -698,35 +698,36 @@ impl App {
         }
 
         // special reveal commands
-        if key.code == KeyCode::Char('r') {
+        // Note: CTRL+R may be reported as '\x12' (control character for R) on some terminals
+        let is_ctrl_r = matches!(key.code, KeyCode::Char('r') | KeyCode::Char('R'))
+            && key.modifiers.contains(KeyModifiers::CONTROL);
+        let is_ctrl_r_char = key.code == KeyCode::Char('\x12');
+
+        if is_ctrl_r {
             // SHIFT+CTRL+R: reveal current word
-            if key
-                .modifiers
-                .contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT)
-            {
-                // TODO: implement reveal current word logic here
+            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                self.reveal_current_word();
+                self.advance_to_next_cell();
                 return;
             }
             // ALT+CTRL+R: reveal entire puzzle
-            else if key
-                .modifiers
-                .contains(KeyModifiers::CONTROL | KeyModifiers::ALT)
-            {
-                let Some(grid) = self.state.game.grid.as_mut() else {
-                    // TODO: implement reveal entire puzzle logic here
-                    return;
-                };
-            }
-            // CTRL+R: reveal current letter
-            else if key.modifiers.contains(KeyModifiers::CONTROL) {
-                let (row, col) = self.state.game.sel;
+            else if key.modifiers.contains(KeyModifiers::ALT) {
                 if let Some(grid) = self.state.game.grid.as_mut() {
-                    if let Some(cell) = grid.get_mut(row, col) {
-                        // TODO: implement reveal current letter logic here
-                    }
+                    grid.reveal_all();
                 }
                 return;
             }
+            // CTRL+R: reveal current letter
+            else {
+                self.reveal_current_letter();
+                self.advance_to_next_cell();
+                return;
+            }
+        } else if is_ctrl_r_char {
+            // CTRL+R as control character: reveal current letter
+            self.reveal_current_letter();
+            self.advance_to_next_cell();
+            return;
         }
 
         match key.code {
@@ -783,6 +784,40 @@ impl App {
         let direction = self.state.game.active_direction;
         if let Some(grid) = self.state.game.grid.as_mut() {
             grid.set_selection(row, col, direction);
+        }
+    }
+
+    /// Reveal the current cell's letter.
+    fn reveal_current_letter(&mut self) {
+        let (row, col) = self.state.game.sel;
+        if let Some(grid) = self.state.game.grid.as_mut() {
+            if let Some(cell) = grid.get_mut(row, col) {
+                cell.reveal();
+            }
+        }
+    }
+
+    /// Reveal all letters in the currently selected word.
+    fn reveal_current_word(&mut self) {
+        let (row, col) = self.state.game.sel;
+        let direction = self.state.game.active_direction;
+
+        // Get the clue number for the current cell in the active direction
+        let clue_no = if let Some(grid) = self.state.game.grid.as_ref() {
+            if let Some(cell) = grid.get(row, col) {
+                cell.clue_no_for_direction(direction)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Reveal all cells in the word
+        if let Some(clue_no) = clue_no {
+            if let Some(grid) = self.state.game.grid.as_mut() {
+                grid.reveal_word(clue_no, direction);
+            }
         }
     }
 

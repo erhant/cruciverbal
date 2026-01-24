@@ -90,6 +90,30 @@ impl PuzzleGrid {
         }
     }
 
+    /// Reveal all cells in a word with the given clue number and direction.
+    ///
+    /// This sets each cell's user_letter to its clue_letter.
+    pub fn reveal_word(&mut self, clue_no: usize, direction: Direction) {
+        for row in self.cells.iter_mut() {
+            for cell in row.iter_mut() {
+                if let Some(cell_clue) = cell.clue_no_for_direction(direction) {
+                    if cell_clue == clue_no {
+                        cell.reveal();
+                    }
+                }
+            }
+        }
+    }
+
+    /// Reveal all cells in the grid.
+    pub fn reveal_all(&mut self) {
+        for row in self.cells.iter_mut() {
+            for cell in row.iter_mut() {
+                cell.reveal();
+            }
+        }
+    }
+
     /// Find the first non-filled cell in the grid (for initial selection).
     pub fn find_first_letter_cell(&self) -> Option<(usize, usize)> {
         for (row_idx, row) in self.cells.iter().enumerate() {

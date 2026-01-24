@@ -236,7 +236,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download() {
-        match download("2025-03-15").await {
+        match download("2026-01-25").await {
             Ok(obj) => println!("Download test passed: {:#?}", obj),
             Err(e) => panic!("Download test failed: {}", e),
         }
