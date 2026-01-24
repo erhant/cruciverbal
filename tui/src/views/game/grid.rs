@@ -134,6 +134,9 @@ impl PuzzleGrid {
     ///   AND there's at least one more letter to the right/below.
     pub fn from_solution(solution: &[String]) -> Self {
         let height = solution.len();
+        if height == 0 {
+            panic!("Solution grid cannot be empty");
+        }
         let width = solution[0].chars().count();
 
         // convert solution to char grid for easier indexing

@@ -7,8 +7,6 @@ pub use views::*;
 // TODO:
 // in the player:
 // - ^S to save progress (locally)
-// - ^T to toggle timer
-// - ^R to reveal
 
 // TODO:
 // we dont support rebus squares yet

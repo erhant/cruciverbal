@@ -16,6 +16,7 @@ serde.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 puz-parse.workspace = true
+chrono.workspace = true
 
 # inter-workspace dependencies
 # cruciverbal-core = { path = "../core" }

@@ -62,17 +62,10 @@ impl App {
             // draw first (to disguise async stuff in ticks)
             terminal.draw(|frame| self.draw(frame))?;
 
-            // process ticks
-            if self.state.game.puzzle.is_none() {
-                // FIXME: mock download game
-                let date = "2025-12-08";
-                self.state.game.puzzle =
-                    cruciverbal_providers::providers::lovatts_cryptic::download(date)
-                        .await
-                        .ok();
-                if self.state.game.puzzle.is_some() {
-                    self.state.game.puzzle_date = Some(date.to_string());
-                }
+            // handle loading state - download puzzle
+            if self.view == AppView::Game(GameView::Loading) {
+                self.download_puzzle().await;
+                continue;
             }
 
             // handle events with timeout to allow animation updates
@@ -90,9 +83,39 @@ impl App {
         Ok(())
     }
 
+    /// Download puzzle based on current selection state.
+    async fn download_puzzle(&mut self) {
+        use crate::game::GameView;
+        use cruciverbal_providers::PuzzleProvider;
+
+        let date = self.state.game.selection.date.clone();
+        let provider = PuzzleProvider::ALL
+            .get(self.state.game.selection.provider_idx)
+            .copied()
+            .unwrap_or_default();
+
+        let result = match provider {
+            PuzzleProvider::LovattsCryptic => {
+                cruciverbal_providers::providers::lovatts_cryptic::download(&date).await
+            }
+        };
+
+        match result {
+            Ok(puzzle) => {
+                self.state.game.puzzle = Some(puzzle);
+                self.state.game.puzzle_date = Some(date);
+                self.state.game.grid = None; // Will be built on first draw
+                self.state.game.start_time = None; // Will be set on first draw
+                self.view = AppView::Game(GameView::Playing);
+            }
+            Err(e) => {
+                self.state.game.selection.error = Some(format!("Download failed: {}", e));
+                self.view = AppView::Game(GameView::Selecting);
+            }
+        }
+    }
+
     /// Renders the user interface.
-    ///
-    /// TODO: separate footer and header here, and give the frame only the body area.
     fn draw(&mut self, frame: &mut ratatui::Frame) {
         match self.view.clone() {
             AppView::Menu => self.draw_menu(frame),

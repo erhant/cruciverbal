@@ -18,16 +18,15 @@ pub struct MenuState {
 /// A menu item.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MenuItem {
-    Play,
+    NewGame,
     Exit,
 }
 
 impl MenuItem {
-    pub const ALL: [MenuItem; 2] = [MenuItem::Play, MenuItem::Exit];
+    pub const ALL: [MenuItem; 2] = [MenuItem::NewGame, MenuItem::Exit];
     pub fn fmt(&self) -> String {
         match self {
-            // TODO: may add `New Game`, `Load Game`, `Settings`, etc.
-            MenuItem::Play => "Play".to_string(),
+            MenuItem::NewGame => "New Game".to_string(),
             MenuItem::Exit => "Exit".to_string(),
         }
     }
@@ -59,7 +58,7 @@ impl App {
                 ListItem::new(item.fmt()).style(if i == self.state.menu.sel {
                     Style::default()
                         .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
                 })
@@ -106,13 +105,12 @@ impl App {
     fn select_menu_item(&mut self) {
         // TODO: can use `.get` here for safety
         match MenuItem::ALL[self.state.menu.sel] {
-            MenuItem::Play => {
+            MenuItem::NewGame => {
                 use crate::views::game::GameView;
 
-                self.view = match self.state.game.puzzle {
-                    Some(_) => AppView::Game(GameView::Playing),
-                    None => AppView::Game(GameView::Selecting),
-                };
+                // Reset game state for a new game
+                self.state.game.reset_for_new_game();
+                self.view = AppView::Game(GameView::Selecting);
             }
             MenuItem::Exit => {
                 self.quit();

@@ -2,6 +2,7 @@ pub enum ProviderError {
     FetchError(reqwest::Error),
     SerdeParseError(serde_json::Error),
     PuzParseError(puz_parse::PuzError),
+    InvalidPuzzleData(String),
     Other(String),
 }
 
@@ -35,6 +36,7 @@ impl std::fmt::Display for ProviderError {
             ProviderError::FetchError(e) => write!(f, "Fetch error: {}", e),
             ProviderError::SerdeParseError(e) => write!(f, "Serde parse error: {}", e),
             ProviderError::PuzParseError(e) => write!(f, "PUZ parse error: {}", e),
+            ProviderError::InvalidPuzzleData(e) => write!(f, "Invalid puzzle data: {}", e),
             ProviderError::Other(e) => write!(f, "Other error: {}", e),
         }
     }

@@ -200,6 +200,20 @@ impl PuzzleCell {
         }
     }
 
+    /// Reveal the correct letter by setting user_letter to clue_letter.
+    ///
+    /// Does nothing if the cell is filled.
+    pub fn reveal(&mut self) {
+        if let PuzzleCellValue::Letter {
+            clue_letter,
+            user_letter,
+            ..
+        } = &mut self.val
+        {
+            *user_letter = Some(*clue_letter);
+        }
+    }
+
     pub fn to_val_span(&self) -> Span {
         match &self.val {
             PuzzleCellValue::Filled => {
@@ -263,7 +277,7 @@ impl PuzzleCell {
     }
 
     pub fn to_selection_span(&self) -> Span {
-        if self.is_selected_cell {
+        if self.is_selected_cell || self.is_selected_word {
             Span::raw("_")
         } else {
             Span::raw(" ")

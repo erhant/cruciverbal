@@ -30,7 +30,17 @@ pub async fn download(date: &str) -> Result<puz_parse::Puzzle, ProviderError> {
         .ok_or_else(|| {
             ProviderError::Other("Failed to get puzzle data from response".to_string())
         })?;
-    parse(data)
+    let puz = parse(data)?;
+
+    // validate puzzle dimensions
+    // sometimes some providers return 200 code but invalid puzzle data
+    if puz.info.height == 0 || puz.info.width == 0 {
+        return Err(ProviderError::InvalidPuzzleData(
+            "Parsed puzzle has zero height or width".to_string(),
+        ));
+    }
+
+    Ok(puz)
 }
 
 /// Puzzleexperts return a `data` field which itself is a string, which must be separated by `&` character.
@@ -226,7 +236,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download() {
-        match download("2025-12-08").await {
+        match download("2025-03-15").await {
             Ok(obj) => println!("Download test passed: {:#?}", obj),
             Err(e) => panic!("Download test failed: {}", e),
         }

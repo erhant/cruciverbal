@@ -12,6 +12,9 @@ Cruciverbal is a terminal-based crossword puzzle player written in Rust. The app
 - PUZ format puzzle parsing and display
 - Interactive puzzle solving with keyboard navigation
 - Auto-scrolling to keep selected cell visible
+- Direction toggling (Across/Down) with word highlighting
+- 3-area game layout: top bar (date, title, timer), grid, bottom bar (clue)
+- Puzzle selection screen with date picker and provider selector
 
 **Tech Stack:**
 
@@ -46,20 +49,35 @@ The main application binary that provides the interactive crossword solving expe
 
 - `App` - Main application state machine with view switching
 - `AppView` enum - Menu vs Game view states
+- `GameView` enum - Playing, Selecting, Loading, Saving states
 - `GameState` - Game state including:
   - `puzzle: Option<Puzzle>` - Raw puzzle data from puz_parse
   - `grid: Option<PuzzleGrid>` - Playable grid built from puzzle
   - `sel: (usize, usize)` - Currently selected cell (row, col)
+  - `active_direction: Direction` - Current direction for clue display and word highlighting
+  - `puzzle_date: Option<String>` - Date of the loaded puzzle
+  - `start_time: Option<Instant>` - Timer start time
+  - `selection: SelectionState` - State for puzzle selection screen
   - `visible_area`, `scroll_cur`, `scroll_max`, `scroll_bar` - Viewport/scrolling state
+- `SelectionState` - State for puzzle selection:
+  - `date: String` - Date input (YYYY-MM-DD)
+  - `provider_idx: usize` - Selected provider index
+  - `active_field: SelectionField` - Which field is active (Date/Provider/Start)
+  - `error: Option<String>` - Error message to display
+- `Provider` enum - Available puzzle providers (currently: LovattsCryptic)
+- `Direction` enum - Across or Down direction
 - `MenuState` - Menu selection tracking
 - `PuzzleGrid` - Grid with cells, selection management, and rendering:
   - `from_solution(&[String])` - Build grid from puz_parse solution with automatic clue numbering
-  - `set_selection()`, `get()`, `get_mut()` - Cell access and selection management
+  - `set_selection(row, col, direction)` - Cell and word selection with highlighting
+  - `get()`, `get_mut()` - Cell access
   - `to_par()` - Convert to Ratatui Paragraph for rendering
 - `PuzzleCell` - Individual cell with:
   - `val: PuzzleCellValue` - Either `Filled` (black) or `Letter` with clue data
-  - `is_selected: bool` - Whether cell is currently selected
+  - `is_selected_cell: bool` - Whether this is the cursor cell (yellow)
+  - `is_selected_word: bool` - Whether this cell is part of the selected word (cyan)
   - `set_user_letter()`, `get_user_letter()` - User input management
+  - `clue_no_for_direction()`, `word_idx_for_direction()`, `has_direction()` - Direction helpers
 - `ClueNoDirection` - Tracks which clue number(s) the cell belongs to (Across/Down/Cross)
 - `WordIdxDirection` - Tracks 0-based position within the word(s)
 
@@ -81,13 +99,14 @@ Library crate for fetching puzzles from external sources.
 
 ## Key Components
 
-### Application Flow (tui/src/app.rs:52-84)
+### Application Flow (tui/src/app.rs)
 
 1. Initialize terminal and app state
 2. Run event loop at 35 FPS
 3. Handle crossterm events (keyboard input)
-4. Render current view (menu or game)
-5. Auto-download puzzle if none loaded (hardcoded date currently)
+4. Render current view (Menu, Game:Selecting, Game:Loading, Game:Playing)
+5. When in Loading state, download puzzle from selected provider
+6. On successful download, transition to Playing state
 
 ### Rendering System (tui/src/views/game/grid.rs)
 
@@ -97,9 +116,25 @@ Library crate for fetching puzzles from external sources.
   - Cell numbering (1-2 digit clue numbers displayed in top-left)
   - Letter display (user-entered letters shown in cell center)
   - Selection indicator (underscore when selected)
-  - Yellow highlighting for selected cell borders
+  - Yellow highlighting for cursor cell borders
+  - Cyan highlighting for word cells in active direction
 - Scrollbars (vertical and horizontal) when puzzle exceeds viewport
 - Auto-scroll keeps selected cell visible during navigation
+
+### Game Layout (tui/src/views/game/mod.rs)
+
+The game view is split into 3 areas:
+- **Top bar**: Date (left), puzzle title (center), timer MM:SS (right)
+- **Middle**: Puzzle grid with scrollbars
+- **Bottom bar**: Current clue based on selection and active direction
+
+### Puzzle Selection Screen
+
+Centered form with:
+- Date input field (YYYY-MM-DD, defaults to today)
+- Provider selector (currently only Lovatts Cryptic)
+- Start button
+- Error message display for validation/download failures
 
 ### Puzzle Provider (providers/src/providers/lovatts_cryptic.rs)
 
@@ -114,32 +149,45 @@ Library crate for fetching puzzles from external sources.
 
 - **Global:** CTRL+C to quit
 - **Menu:** Arrow keys for navigation, Enter to select, ESC to quit
-- **Game:**
+- **Puzzle Selection:**
+  - ↑↓: Navigate between fields (Date, Provider, Start)
+  - ←→: Change provider selection
+  - Tab: Next field
+  - Enter: Confirm/Start game
+  - Type digits/dashes: Edit date field
+  - Backspace: Delete character in date field
+  - ESC: Back to menu
+- **Game (Playing):**
   - Arrow keys: Navigate between cells (skips filled/black cells)
   - A-Z: Enter letter in current cell (auto-uppercased)
   - Backspace/Delete: Clear current cell
-  - ECS: Quit to menu
+  - SPACEBAR: Toggle direction (Across ↔ Down)
+  - ESC: Back to menu
 
 ## Development Notes
 
 ### Current State
 
-- Puzzle loading and display working
-- Menu system functional with Play/Exit options
-- Grid rendering complete with proper border handling
-- **Playable:** Users can navigate cells and enter letters
-- Cell selection with yellow highlighting
+- **Fully playable** crossword puzzle experience
+- Menu system with New Game option
+- Puzzle selection screen with date picker and provider selector
+- Async puzzle download with error handling
+- Grid rendering with proper border handling
+- Cell and word selection with direction toggling
+- Yellow highlighting for cursor, cyan for word
+- Clue display in bottom bar based on active direction
+- Timer display in top bar
 - Auto-scroll keeps selection visible
 - Scrollbars for large puzzles
 
 ### Known Limitations
 
-- Puzzle date is hardcoded (2025-12-08) in app.rs:69
 - Only one provider implemented (Lovatt's Cryptic)
 - No rebus square support (noted in tui/src/lib.rs:15)
 - No answer validation/checking yet
-- No clue display panel yet
+- No save/load game progress
 - Error handling incomplete in some areas (todo!() macros present)
+- GameView::Saving not implemented
 
 ### Planned Features (from code TODOs)
 
@@ -174,6 +222,7 @@ From tui/src/lib.rs:7-15:
 - `crossterm` v0.29 with event-stream feature
 - `color-eyre` v0.6.3 for error reporting
 - `futures` v0.3.31 for async utilities
+- `chrono` v0.4 for date handling (default date, date validation)
 
 ### Development Setup
 
