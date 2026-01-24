@@ -889,7 +889,7 @@ impl App {
     /// clue word. Wraps rows/columns as needed. If nothing is found, selects the last
     /// non-filled cell encountered.
     fn jump_to_next_word(&mut self, row_delta: i32, col_delta: i32) {
-        let Some(grid) = self.state.game.grid.as_mut() else {
+        let Some(grid) = self.state.game.grid.as_ref() else {
             return;
         };
 
@@ -914,9 +914,9 @@ impl App {
         let mut new_row = cur_row as i32 + row_delta;
         let mut new_col = cur_col as i32 + col_delta;
 
-        // Track the last non-filled cell we've seen (as fallback)
+        // Track the target cell (empty cell in different word) and fallback (last non-filled)
+        let mut target: Option<(usize, usize)> = None;
         let mut last_valid: Option<(usize, usize)> = None;
-        // Track if we've wrapped around completely
         let start = (cur_row, cur_col);
         let mut wrapped = false;
 
@@ -926,11 +926,8 @@ impl App {
                 // Wrap based on movement direction
                 if col_delta != 0 {
                     // Horizontal movement: wrap to next/prev row
-                    // Right (col_delta > 0): go to next row, start of row
-                    // Left (col_delta < 0): go to previous row, end of row
                     new_row += col_delta.signum();
                     new_col = if col_delta > 0 { 0 } else { width - 1 };
-                    // Handle row bounds
                     if new_row < 0 {
                         new_row = height - 1;
                     } else if new_row >= height {
@@ -938,11 +935,8 @@ impl App {
                     }
                 } else {
                     // Vertical movement: wrap to next/prev column
-                    // Down (row_delta > 0): go to next column, top of column
-                    // Up (row_delta < 0): go to previous column, bottom of column
                     new_col += row_delta.signum();
                     new_row = if row_delta > 0 { 0 } else { height - 1 };
-                    // Handle column bounds
                     if new_col < 0 {
                         new_col = width - 1;
                     } else if new_col >= width {
@@ -959,26 +953,21 @@ impl App {
 
             if let Some(cell) = grid.get(new_row as usize, new_col as usize) {
                 if !cell.is_filled() {
-                    // Track this as a potential fallback
+                    // Track as potential fallback
                     last_valid = Some((new_row as usize, new_col as usize));
 
                     // Check if this cell belongs to a different clue word
                     let cell_clue = cell.clue_no_for_direction(movement_direction);
-
-                    // If current cell has no clue in this direction, or cell has different clue
                     let is_different_word = match (current_clue, cell_clue) {
-                        (Some(cur), Some(cell)) => cur != cell,
+                        (Some(cur), Some(c)) => cur != c,
                         (None, Some(_)) => true,
                         _ => false,
                     };
 
-                    // Found an empty cell in a different word
+                    // Found an empty cell in a different word - this is our target
                     if is_different_word && cell.is_empty() {
-                        if grid.set_selection(new_row as usize, new_col as usize, direction) {
-                            self.state.game.sel = (new_row as usize, new_col as usize);
-                        }
-                        self.ensure_selection_visible();
-                        return;
+                        target = Some((new_row as usize, new_col as usize));
+                        break;
                     }
                 }
             }
@@ -988,10 +977,13 @@ impl App {
             new_col += col_delta;
         }
 
-        // If we didn't find an empty cell in a different word, go to last valid cell
-        if let Some((row, col)) = last_valid {
-            if grid.set_selection(row, col, direction) {
-                self.state.game.sel = (row, col);
+        // Now apply the selection (after releasing the immutable borrow)
+        let final_target = target.or(last_valid);
+        if let Some((row, col)) = final_target {
+            if let Some(grid) = self.state.game.grid.as_mut() {
+                if grid.set_selection(row, col, direction) {
+                    self.state.game.sel = (row, col);
+                }
             }
             self.ensure_selection_visible();
         }
