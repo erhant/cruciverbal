@@ -4,6 +4,24 @@ use ratatui::{
     text::Span,
 };
 
+/// The active direction for navigation and clue display.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Direction {
+    #[default]
+    Across,
+    Down,
+}
+
+impl Direction {
+    /// Toggle between Across and Down.
+    pub fn toggle(&self) -> Self {
+        match self {
+            Direction::Across => Direction::Down,
+            Direction::Down => Direction::Across,
+        }
+    }
+}
+
 /// A cell in the puzzle grid.
 ///
 /// It is to be rendered as follows:
@@ -27,11 +45,10 @@ use ratatui::{
 pub struct PuzzleCell {
     /// Value contained within this cell.
     pub val: PuzzleCellValue,
-    /// Whether this cell is currently selected by the user.
-    ///
-    /// TODO: In the future, when filled cells are not-selectable,
-    /// we can move this field into `PuzzleCellValue::Letter` too.
-    pub is_selected: bool,
+    /// Whether this cell is the currently selected cursor cell.
+    pub is_selected_cell: bool,
+    /// Whether this cell is part of the currently selected word (but not the cursor).
+    pub is_selected_word: bool,
 }
 
 /// The clue number(s) for the word(s) that pass through this cell.
@@ -129,7 +146,8 @@ impl PuzzleCell {
     pub fn filled() -> Self {
         Self {
             val: PuzzleCellValue::Filled,
-            is_selected: false,
+            is_selected_cell: false,
+            is_selected_word: false,
         }
     }
 
@@ -142,18 +160,43 @@ impl PuzzleCell {
                 word_idx,
                 clue_no,
             },
-            is_selected: false,
+            is_selected_cell: false,
+            is_selected_word: false,
         }
     }
 
     pub fn as_selected(mut self) -> Self {
-        self.is_selected = true;
+        self.is_selected_cell = true;
         self
+    }
+
+    /// Clear all selection flags (cell and word).
+    pub fn clear_selection(&mut self) {
+        self.is_selected_cell = false;
+        self.is_selected_word = false;
     }
 
     /// Check if the cell is filled (black).
     pub fn is_filled(&self) -> bool {
         matches!(self.val, PuzzleCellValue::Filled)
+    }
+
+    /// Set the user-entered letter for this cell.
+    ///
+    /// Does nothing if the cell is filled.
+    pub fn set_user_letter(&mut self, letter: Option<char>) {
+        if let PuzzleCellValue::Letter { user_letter, .. } = &mut self.val {
+            *user_letter = letter;
+        }
+    }
+
+    /// Get the user-entered letter, if any.
+    pub fn get_user_letter(&self) -> Option<char> {
+        if let PuzzleCellValue::Letter { user_letter, .. } = &self.val {
+            *user_letter
+        } else {
+            None
+        }
     }
 
     pub fn to_val_span(&self) -> Span {
@@ -219,10 +262,51 @@ impl PuzzleCell {
     }
 
     pub fn to_selection_span(&self) -> Span {
-        if self.is_selected {
+        if self.is_selected_cell {
             Span::raw("_")
         } else {
             Span::raw(" ")
+        }
+    }
+
+    /// Get the clue number for a given direction, if the cell belongs to a word in that direction.
+    pub fn clue_no_for_direction(&self, direction: Direction) -> Option<usize> {
+        match &self.val {
+            PuzzleCellValue::Filled => None,
+            PuzzleCellValue::Letter { clue_no, .. } => match (clue_no, direction) {
+                (ClueNoDirection::Across(n), Direction::Across) => Some(*n),
+                (ClueNoDirection::Down(n), Direction::Down) => Some(*n),
+                (ClueNoDirection::Cross(a, _), Direction::Across) => Some(*a),
+                (ClueNoDirection::Cross(_, d), Direction::Down) => Some(*d),
+                _ => None,
+            },
+        }
+    }
+
+    /// Get the word index for a given direction, if the cell belongs to a word in that direction.
+    pub fn word_idx_for_direction(&self, direction: Direction) -> Option<usize> {
+        match &self.val {
+            PuzzleCellValue::Filled => None,
+            PuzzleCellValue::Letter { word_idx, .. } => match (word_idx, direction) {
+                (WordIdxDirection::Across(i), Direction::Across) => Some(*i),
+                (WordIdxDirection::Down(i), Direction::Down) => Some(*i),
+                (WordIdxDirection::Cross(a, _), Direction::Across) => Some(*a),
+                (WordIdxDirection::Cross(_, d), Direction::Down) => Some(*d),
+                _ => None,
+            },
+        }
+    }
+
+    /// Check if this cell belongs to a word in the given direction.
+    pub fn has_direction(&self, direction: Direction) -> bool {
+        match &self.val {
+            PuzzleCellValue::Filled => false,
+            PuzzleCellValue::Letter { clue_no, .. } => match (clue_no, direction) {
+                (ClueNoDirection::Across(_), Direction::Across) => true,
+                (ClueNoDirection::Down(_), Direction::Down) => true,
+                (ClueNoDirection::Cross(_, _), _) => true,
+                _ => false,
+            },
         }
     }
 }

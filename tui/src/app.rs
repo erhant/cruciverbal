@@ -65,10 +65,14 @@ impl App {
             // process ticks
             if self.state.game.puzzle.is_none() {
                 // FIXME: mock download game
+                let date = "2025-12-08";
                 self.state.game.puzzle =
-                    cruciverbal_providers::providers::lovatts_cryptic::download("2025-12-08")
+                    cruciverbal_providers::providers::lovatts_cryptic::download(date)
                         .await
                         .ok();
+                if self.state.game.puzzle.is_some() {
+                    self.state.game.puzzle_date = Some(date.to_string());
+                }
             }
 
             // handle events with timeout to allow animation updates

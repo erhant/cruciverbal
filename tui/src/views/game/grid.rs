@@ -5,7 +5,7 @@ use ratatui::{
 };
 
 use super::boxchars::*;
-use super::{ClueNoDirection, PuzzleCell, WordIdxDirection};
+use super::{ClueNoDirection, Direction, PuzzleCell, WordIdxDirection};
 
 /// A grid of cells.
 #[derive(Debug)]
@@ -16,6 +16,90 @@ pub struct PuzzleGrid {
 impl PuzzleGrid {
     pub fn cells(&self) -> &Vec<Vec<PuzzleCell>> {
         &self.cells
+    }
+
+    pub fn cells_mut(&mut self) -> &mut Vec<Vec<PuzzleCell>> {
+        &mut self.cells
+    }
+
+    /// Get a reference to a cell at the given position.
+    pub fn get(&self, row: usize, col: usize) -> Option<&PuzzleCell> {
+        self.cells.get(row).and_then(|r| r.get(col))
+    }
+
+    /// Get a mutable reference to a cell at the given position.
+    pub fn get_mut(&mut self, row: usize, col: usize) -> Option<&mut PuzzleCell> {
+        self.cells.get_mut(row).and_then(|r| r.get_mut(col))
+    }
+
+    /// Update the selection to the given cell, clearing all previous selections.
+    ///
+    /// This sets `is_selected_cell` on the new cell and `is_selected_word` on all
+    /// other cells in the same word (based on the active direction).
+    ///
+    /// Returns `true` if the selection was updated (cell exists and is not filled).
+    pub fn set_selection(&mut self, new_row: usize, new_col: usize, direction: Direction) -> bool {
+        // Check if the new cell is valid and not filled
+        let clue_no = if let Some(new_cell) = self.get(new_row, new_col) {
+            if new_cell.is_filled() {
+                return false;
+            }
+            // Get the clue number for the active direction
+            new_cell.clue_no_for_direction(direction)
+        } else {
+            return false;
+        };
+
+        // Clear all selections first
+        for row in self.cells.iter_mut() {
+            for cell in row.iter_mut() {
+                cell.clear_selection();
+            }
+        }
+
+        // Set the cell selection
+        if let Some(new_cell) = self.get_mut(new_row, new_col) {
+            new_cell.is_selected_cell = true;
+        }
+
+        // Highlight the word if we have a clue number for this direction
+        if let Some(target_clue) = clue_no {
+            for row in self.cells.iter_mut() {
+                for cell in row.iter_mut() {
+                    if cell.is_selected_cell {
+                        continue; // Don't mark the cursor cell as word-selected
+                    }
+                    if let Some(cell_clue) = cell.clue_no_for_direction(direction) {
+                        if cell_clue == target_clue {
+                            cell.is_selected_word = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
+    /// Clear all cell and word selections in the grid.
+    pub fn clear_all_selections(&mut self) {
+        for row in self.cells.iter_mut() {
+            for cell in row.iter_mut() {
+                cell.clear_selection();
+            }
+        }
+    }
+
+    /// Find the first non-filled cell in the grid (for initial selection).
+    pub fn find_first_letter_cell(&self) -> Option<(usize, usize)> {
+        for (row_idx, row) in self.cells.iter().enumerate() {
+            for (col_idx, cell) in row.iter().enumerate() {
+                if !cell.is_filled() {
+                    return Some((row_idx, col_idx));
+                }
+            }
+        }
+        None
     }
 
     /// Create a new [`PuzzleGrid`] from a 2D vector of [`PuzzleCell`]s.
@@ -184,10 +268,14 @@ impl PuzzleGrid {
             for (col_idx, cell) in cell_line.iter().enumerate() {
                 let is_last_col = col_idx == num_cols - 1;
 
-                let border_style = if cell.is_selected {
+                let border_style = if cell.is_selected_cell {
+                    // Cursor cell: yellow bold
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(ratatui::style::Modifier::BOLD)
+                } else if cell.is_selected_word {
+                    // Word cell: cyan
+                    Style::default().fg(Color::Cyan)
                 } else {
                     Style::default().fg(Color::White)
                 };
@@ -317,7 +405,8 @@ mod tests {
                     word_idx,
                     clue_no,
                 },
-                is_selected: false,
+                is_selected_cell: false,
+                is_selected_word: false,
             }
         }
     }
