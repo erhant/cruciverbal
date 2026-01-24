@@ -4,7 +4,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-use super::boxchars::*;
+use super::constants::*;
 use super::{ClueNoDirection, Direction, PuzzleCell, WordIdxDirection};
 
 /// A grid of cells.

@@ -8,7 +8,7 @@ use ratatui::{
 };
 use std::time::Instant;
 
-mod boxchars;
+mod constants;
 
 mod grid;
 use grid::*;
@@ -89,12 +89,12 @@ impl App {
     }
 
     fn draw_game_playing(&mut self, frame: &mut ratatui::Frame) {
-        // Initialize grid from puzzle if not already done
+        // initialize grid from puzzle if not already done
         if self.state.game.grid.is_none() {
             if let Some(puzzle) = self.state.game.puzzle.as_ref() {
                 let mut grid = PuzzleGrid::from_solution(&puzzle.grid.solution);
 
-                // Find and select the first letter cell
+                // find and select the first letter cell
                 if let Some((row, col)) = grid.find_first_letter_cell() {
                     grid.set_selection(row, col, self.state.game.active_direction);
                     self.state.game.sel = (row, col);
@@ -102,7 +102,7 @@ impl App {
 
                 self.state.game.grid = Some(grid);
 
-                // Start timer when grid is initialized
+                // start timer when grid is initialized
                 if self.state.game.start_time.is_none() {
                     self.state.game.start_time = Some(Instant::now());
                 }
@@ -113,7 +113,7 @@ impl App {
             return; // nothing to draw
         };
 
-        // Split into 3 areas: top bar, grid, bottom bar
+        // split into 3 areas: top bar, grid, bottom bar
         let full_area = frame.area();
         let layout = Layout::vertical([
             Constraint::Length(1), // top bar

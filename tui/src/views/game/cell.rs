@@ -1,4 +1,4 @@
-use super::boxchars::*;
+use super::constants::*;
 use ratatui::{
     style::{Color, Style},
     text::Span,
@@ -45,6 +45,7 @@ impl Direction {
 pub struct PuzzleCell {
     /// Value contained within this cell.
     pub val: PuzzleCellValue,
+    // TODO: move `is_selected_*` to within `PuzzleCellValue::Letter` since we cant select filled cells
     /// Whether this cell is the currently selected cursor cell.
     pub is_selected_cell: bool,
     /// Whether this cell is part of the currently selected word (but not the cursor).

@@ -9,7 +9,6 @@ pub use views::*;
 // - ^S to save progress (locally)
 // - ^T to toggle timer
 // - ^R to reveal
-// - CTRL+Q to quit
 
 // TODO:
 // we dont support rebus squares yet

@@ -10,6 +10,5 @@ pub const BOX_B: char = '╩';
 pub const BOX_L: char = '╠';
 pub const BOX_R: char = '╣';
 pub const BOX_X: char = '╬';
-
 pub const BOX_EMPTY: char = ' ';
 pub const BOX_FILLED: char = '█';
