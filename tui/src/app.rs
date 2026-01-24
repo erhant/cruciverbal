@@ -1,13 +1,16 @@
-use crate::{game::GameState, menu::MenuState};
+use crate::{
+    game::{GameState, GameView},
+    menu::MenuState,
+};
 use color_eyre::eyre::Result;
 use crossterm::event::EventStream;
 use std::time::Duration;
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub enum AppView {
     #[default]
     Menu,
-    Game,
+    Game(GameView),
 }
 
 #[derive(Default, Debug)]
@@ -89,7 +92,7 @@ impl App {
     fn draw(&mut self, frame: &mut ratatui::Frame) {
         match self.view.clone() {
             AppView::Menu => self.draw_menu(frame),
-            AppView::Game => self.draw_game(frame),
+            AppView::Game(view) => self.draw_game(view, frame),
         }
     }
 
@@ -116,9 +119,9 @@ impl App {
                         return Ok(());
                     };
 
-                    match &self.view.clone() {
+                    match self.view.clone() {
                         AppView::Menu => self.handle_menu_input(key),
-                        AppView::Game => self.handle_game_input(key),
+                        AppView::Game(view) => self.handle_game_input(view, key),
                     }
                 }
                 Event::Mouse(_) => {} // no mouse events

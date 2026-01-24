@@ -37,7 +37,7 @@ impl App {
     pub fn draw_menu(&mut self, frame: &mut Frame) {
         let area = frame.area();
 
-        // Create layout
+        // create layout
         let vertical = Layout::vertical([
             Constraint::Length(2), // Header
             Constraint::Min(0),    // Menu
@@ -48,8 +48,10 @@ impl App {
         let [_, menu_area, _] =
             Layout::horizontal(Constraint::from_percentages([40, 20, 40])).areas(menu_area);
 
+        // header
         frame.render_widget(Paragraph::new("Cruciverbal").centered(), header_area);
-        // Menu items
+
+        // menu items
         let menu_items: Vec<ListItem> = MenuItem::ALL
             .iter()
             .enumerate()
@@ -63,11 +65,9 @@ impl App {
                 })
             })
             .collect();
-
-        // render menu items
         frame.render_widget(List::new(menu_items), menu_area);
 
-        // Footer
+        // footer
         let footer_line = Line::from_iter([Span::styled(
             "↑↓ navigate • ESC quit",
             Style::default().fg(Color::DarkGray),
@@ -104,9 +104,15 @@ impl App {
     }
 
     fn select_menu_item(&mut self) {
+        // TODO: can use `.get` here for safety
         match MenuItem::ALL[self.state.menu.sel] {
             MenuItem::Play => {
-                self.view = AppView::Game;
+                use crate::views::game::GameView;
+
+                self.view = match self.state.game.puzzle {
+                    Some(_) => AppView::Game(GameView::Playing),
+                    None => AppView::Game(GameView::Selecting),
+                };
             }
             MenuItem::Exit => {
                 self.quit();

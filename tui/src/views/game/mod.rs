@@ -1,14 +1,36 @@
-use crate::{App, AppView};
+use crate::App;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::{Constraint, Layout};
 use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+
+mod boxchars;
 
 mod grid;
 use grid::*;
 
+mod cell;
+use cell::*;
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub enum GameView {
+    /// User is playing the puzzle, loaded within [`GameState::puzzle`].
+    Playing,
+    /// User is selecting a puzzle to load.
+    #[default]
+    Selecting,
+    /// Puzzle is being loaded (either from file or network).
+    Loading,
+    /// User is saving the current puzzle to file.
+    Saving,
+}
+
 #[derive(Default, Debug)]
 pub struct GameState {
+    /// Loaded puzzle, if any.
     pub puzzle: Option<puz_parse::Puzzle>,
+
+    // TODO: add grid here & make it editable
+    /// Selected cell.
+    pub sel: (usize, usize),
 
     /* scrollbar stuff */
     /// Current scroll position (vertical, horizontal).
@@ -21,27 +43,24 @@ pub struct GameState {
 }
 
 impl App {
-    pub fn draw_game(&mut self, frame: &mut ratatui::Frame) {
+    pub fn draw_game(&mut self, view: GameView, frame: &mut ratatui::Frame) {
+        match view {
+            GameView::Playing => self.draw_game_playing(frame),
+            _ => todo!(),
+        }
+    }
+
+    fn draw_game_playing(&mut self, frame: &mut ratatui::Frame) {
         let Some(puzzle) = self.state.game.puzzle.as_ref() else {
             return; // nothing to draw
         };
 
         let area = frame.area();
-        let puzzle_cells = puzzle
-            .grid
-            .solution
-            .iter()
-            .map(|s| {
-                s.chars()
-                    .map(|c| PuzzleCell::from(c))
-                    .collect::<Vec<PuzzleCell>>()
-            })
-            .collect::<Vec<Vec<PuzzleCell>>>();
-        let puzzle_grid = PuzzleGrid::new(puzzle_cells);
+        let puzzle_grid = PuzzleGrid::from_solution(&puzzle.grid.solution);
         assert!(puzzle_grid.height() == puzzle.info.height);
         assert!(puzzle_grid.width() == puzzle.info.width);
 
-        // render the puzzle grid with scrollbars
+        // // render the puzzle grid with scrollbars
         let mut par = puzzle_grid.to_par();
         let (width, height) = (area.width, area.height);
 
@@ -100,13 +119,13 @@ impl App {
         frame.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
                 .begin_symbol(Some("←"))
-                .end_symbol(Some("→")),
+                .end_symbol(Some("->")),
             area,
             &mut self.state.game.scroll_bar.1,
         );
     }
 
-    pub fn handle_game_input(&mut self, key: KeyEvent) {
+    pub fn handle_game_input(&mut self, view: GameView, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => {
                 self.is_running = false;

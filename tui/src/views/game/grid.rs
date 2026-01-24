@@ -4,171 +4,11 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-// Box drawing characters
-const BOX_H: char = '═';
-const BOX_V: char = '║';
-const BOX_TL: char = '╔';
-const BOX_TR: char = '╗';
-const BOX_BL: char = '╚';
-const BOX_BR: char = '╝';
-const BOX_T: char = '╦';
-const BOX_B: char = '╩';
-const BOX_L: char = '╠';
-const BOX_R: char = '╣';
-const BOX_X: char = '╬';
-
-const BOX_EMPTY: char = ' ';
-const BOX_FILLED: char = '█';
-
-/// A cell in the puzzle grid.
-///
-/// It is to be rendered as follows:
-///
-/// ```txt
-/// border   no'    no'' border border
-/// border                      border
-/// border          val         border
-/// border           _*         border
-/// border border border border border
-/// ```
-///
-/// Legend:
-/// - `*`: if selected only
-/// - `'`: optional, if numbered
-/// - `''`: optional, if numbered and two-digit
-///
-/// Note that borders are shared between adjacent cells, and so
-/// the [grid](PuzzleGrid) rendering logic takes care to only draw them once.
-pub struct PuzzleCell {
-    /// Number of the clue starting at this cell, if any.
-    pub no: Option<u16>,
-    /// Value contained within this cell.
-    pub val: PuzzleCellValue,
-    /// Whether this cell is currently selected by the user.
-    pub is_selected: bool,
-}
-
-impl From<char> for PuzzleCell {
-    fn from(c: char) -> Self {
-        Self {
-            no: None,
-            val: PuzzleCellValue::from(c),
-            is_selected: false,
-        }
-    }
-}
-
-impl From<char> for PuzzleCellValue {
-    fn from(c: char) -> Self {
-        // `.` is empty cell in `.puz` format,
-        // and we treat space as empty cell too
-        if c == '.' || c == ' ' {
-            PuzzleCellValue::Empty
-        } else if c.is_ascii_alphabetic() {
-            PuzzleCellValue::Letter(c)
-        } else {
-            // anything non-empty & non-letter is treated as filled (black) cell
-            PuzzleCellValue::Filled
-        }
-    }
-}
-
-pub enum PuzzleCellValue {
-    Empty,        // empty cell
-    Filled,       // black cell
-    Letter(char), // letter cell
-}
-
-impl PuzzleCell {
-    /// Create a new empty cell.
-    pub fn empty() -> Self {
-        Self {
-            no: None,
-            val: PuzzleCellValue::Empty,
-            is_selected: false,
-        }
-    }
-
-    /// Check if the cell is empty.
-    pub fn is_empty(&self) -> bool {
-        matches!(self.val, PuzzleCellValue::Empty)
-    }
-
-    /// Create a new filled (black) cell.
-    pub fn filled() -> Self {
-        Self {
-            no: None,
-            val: PuzzleCellValue::Filled,
-            is_selected: false,
-        }
-    }
-
-    /// Check if the cell is filled (black).
-    pub fn is_filled(&self) -> bool {
-        matches!(self.val, PuzzleCellValue::Filled)
-    }
-
-    /// Create a new letter cell with the given value.
-    ///
-    /// The value must be an ASCII alphabetic character.
-    pub fn valued(val: char) -> Self {
-        assert!(val.is_ascii_alphabetic());
-        Self {
-            no: None,
-            val: PuzzleCellValue::Letter(val),
-            is_selected: false,
-        }
-    }
-
-    /// Create a new letter cell with the given value and number.
-    ///
-    /// The value must be an ASCII alphabetic character.
-    /// The number must be less than 100.
-    pub fn valnum(val: char, no: u16) -> Self {
-        // TODO: are there puzzles with more than 99 clues?
-        assert!(no < 100, "Cell number must be less than 100");
-        let mut cell = Self::valued(val);
-        cell.no = Some(no);
-        cell
-    }
-
-    pub fn to_val_span(&self) -> Span {
-        match &self.val {
-            PuzzleCellValue::Empty => Span::raw(BOX_EMPTY.to_string()),
-            PuzzleCellValue::Filled => {
-                Span::styled(BOX_FILLED.to_string(), Style::default().bg(Color::Black))
-            }
-            PuzzleCellValue::Letter(c) => Span::raw(c.to_string()),
-        }
-    }
-
-    pub fn to_no_spans(&self, border_style: Style) -> (Span, Span) {
-        match self.no {
-            None => (
-                Span::styled(BOX_H.to_string(), border_style),
-                Span::styled(BOX_H.to_string(), border_style),
-            ),
-            Some(n) if n < 10 => (
-                Span::raw(n.to_string()),
-                Span::styled(BOX_H.to_string(), border_style),
-            ),
-            Some(n) => (
-                Span::raw((n / 10).to_string()),
-                Span::raw((n % 10).to_string()),
-            ),
-        }
-    }
-
-    pub fn to_selection_span(&self) -> Span {
-        if self.is_selected {
-            Span::raw("_")
-        } else {
-            Span::raw(" ")
-        }
-    }
-}
+use super::boxchars::*;
+use super::{ClueNoDirection, PuzzleCell, WordIdxDirection};
 
 /// A grid of cells.
+#[derive(Debug)]
 pub struct PuzzleGrid {
     cells: Vec<Vec<PuzzleCell>>,
 }
@@ -201,12 +41,132 @@ impl PuzzleGrid {
         self.cells.len() as u8
     }
 
+    /// Build a [`PuzzleGrid`] from a [`puz_parse`] solution grid.
+    ///
+    /// Uses standard crossword numbering: scan left-to-right, top-to-bottom.
+    ///
+    /// - A cell gets a number if it starts an across word OR a down word.
+    /// - A word "starts" if the cell to the left/above is filled (or at edge)
+    ///   AND there's at least one more letter to the right/below.
+    pub fn from_solution(solution: &[String]) -> Self {
+        let height = solution.len();
+        let width = solution[0].chars().count();
+
+        // convert solution to char grid for easier indexing
+        let chars: Vec<Vec<char>> = solution.iter().map(|row| row.chars().collect()).collect();
+
+        // helper to check if a cell is filled (black square)
+        let is_filled = |r: usize, c: usize| chars[r][c] == '.';
+
+        // helper to check if cell is in bounds and is a letter
+        let is_letter = |r: i32, c: i32| -> bool {
+            r >= 0
+                && c >= 0
+                && (r as usize) < height
+                && (c as usize) < width
+                && !is_filled(r as usize, c as usize)
+        };
+
+        // Pass 1: Number cells, track which cells start across/down words
+        let mut across_clue_at: Vec<Vec<Option<usize>>> = vec![vec![None; width]; height];
+        let mut down_clue_at: Vec<Vec<Option<usize>>> = vec![vec![None; width]; height];
+        let mut current_number = 1usize;
+
+        for row in 0..height {
+            for col in 0..width {
+                if is_filled(row, col) {
+                    continue;
+                }
+
+                // Starts across: no letter to left AND letter to right
+                let starts_across =
+                    !is_letter(row as i32, col as i32 - 1) && is_letter(row as i32, col as i32 + 1);
+                // Starts down: no letter above AND letter below
+                let starts_down =
+                    !is_letter(row as i32 - 1, col as i32) && is_letter(row as i32 + 1, col as i32);
+
+                if starts_across || starts_down {
+                    if starts_across {
+                        across_clue_at[row][col] = Some(current_number);
+                    }
+                    if starts_down {
+                        down_clue_at[row][col] = Some(current_number);
+                    }
+                    current_number += 1;
+                }
+            }
+        }
+
+        // Pass 2: Build cells with word_idx and clue_no
+        let mut cells: Vec<Vec<PuzzleCell>> = Vec::with_capacity(height);
+
+        for row in 0..height {
+            let mut row_cells = Vec::with_capacity(width);
+            for col in 0..width {
+                if is_filled(row, col) {
+                    row_cells.push(PuzzleCell::filled());
+                    continue;
+                }
+
+                let clue_letter = chars[row][col];
+
+                // find across word: scan left to start, get clue# and compute offset
+                let across_info = if is_letter(row as i32, col as i32 - 1)
+                    || is_letter(row as i32, col as i32 + 1)
+                {
+                    let mut start = col;
+                    while start > 0 && !is_filled(row, start - 1) {
+                        start -= 1;
+                    }
+                    across_clue_at[row][start].map(|n| (n, col - start))
+                } else {
+                    None
+                };
+
+                // find down word: scan up to start, get clue# and compute offset
+                let down_info = if is_letter(row as i32 - 1, col as i32)
+                    || is_letter(row as i32 + 1, col as i32)
+                {
+                    let mut start = row;
+                    while start > 0 && !is_filled(start - 1, col) {
+                        start -= 1;
+                    }
+                    down_clue_at[start][col].map(|n| (n, row - start))
+                } else {
+                    None
+                };
+
+                #[rustfmt::skip]
+                let (word_idx, clue_no) = match (across_info, down_info) {
+                    (Some((a, ai)), Some((d, di))) => (
+                        WordIdxDirection::Cross(ai, di),
+                        ClueNoDirection::Cross(a, d),
+                    ),
+                    (Some((a, ai)), None) => (
+                        WordIdxDirection::Across(ai),
+                        ClueNoDirection::Across(a)
+                    ),
+                    (None, Some((d, di))) => (
+                        WordIdxDirection::Down(di),
+                        ClueNoDirection::Down(d)
+                    ),
+                    (None, None) => panic!("Isolated cell at ({}, {})", row, col),
+                };
+
+                row_cells.push(PuzzleCell::valued(clue_letter, word_idx, clue_no));
+            }
+            cells.push(row_cells);
+        }
+
+        Self::new(cells)
+    }
+
     /// Convert a [`PuzzleCell`] grid to a [`Paragraph`] for rendering.
     ///
     /// Draws the left & top borders of each cell only once, so that adjacent cells share borders.
     /// Then, the right & bottom borders are drawn only for the last row/column of cells.
     pub fn to_par(&self) -> Paragraph {
-        let empty_span = Span::raw(" "); // to be re-used
+        let empty_span = Span::raw(" "); // for re-use
 
         let num_rows = self.cells.len();
         let num_cols = self.cells[0].len();
@@ -340,17 +300,138 @@ impl PuzzleGrid {
 mod tests {
     use ratatui::widgets::Widget;
 
+    use crate::game::cell::{ClueNoDirection, PuzzleCellValue, WordIdxDirection};
+
     use super::*;
+
+    impl PuzzleCell {
+        pub fn cheated(
+            clue_letter: char,
+            word_idx: WordIdxDirection,
+            clue_no: ClueNoDirection,
+        ) -> Self {
+            Self {
+                val: PuzzleCellValue::Letter {
+                    clue_letter,
+                    user_letter: Some(clue_letter),
+                    word_idx,
+                    clue_no,
+                },
+                is_selected: false,
+            }
+        }
+    }
+
+    #[test]
+    fn test_from_solution() {
+        // . . B     <- B starts down word (clue 1)
+        // A C E     <- A starts across word (clue 2), E is cross (across 2, down 1)
+        // . . E
+        #[rustfmt::skip]
+        let solution = vec![
+          "..B".to_string(),
+          "ACE".to_string(),
+          "..E".to_string()
+        ];
+
+        let grid = PuzzleGrid::from_solution(&solution);
+        println!("{:#?}", grid);
+        assert_eq!(grid.width(), 3);
+        assert_eq!(grid.height(), 3);
+
+        let cells = grid.cells();
+
+        // (0,0) and (0,1) are filled
+        assert!(matches!(cells[0][0].val, PuzzleCellValue::Filled));
+        assert!(matches!(cells[0][1].val, PuzzleCellValue::Filled));
+
+        // (0,2) is 'B', starts down clue 1, position 0 in down word
+        if let PuzzleCellValue::Letter {
+            clue_letter,
+            word_idx,
+            clue_no,
+            ..
+        } = &cells[0][2].val
+        {
+            assert_eq!(*clue_letter, 'B');
+            assert!(matches!(word_idx, WordIdxDirection::Down(0)));
+            assert!(matches!(clue_no, ClueNoDirection::Down(1)));
+        } else {
+            panic!("Expected letter cell at (0,2)");
+        }
+
+        // (1,0) is 'A', starts across clue 2, position 0 in across word
+        if let PuzzleCellValue::Letter {
+            clue_letter,
+            word_idx,
+            clue_no,
+            ..
+        } = &cells[1][0].val
+        {
+            assert_eq!(*clue_letter, 'A');
+            assert!(matches!(word_idx, WordIdxDirection::Across(0)));
+            assert!(matches!(clue_no, ClueNoDirection::Across(2)));
+        } else {
+            panic!("Expected letter cell at (1,0)");
+        }
+
+        // (1,1) is 'C', position 1 in across word (clue 2), only across
+        if let PuzzleCellValue::Letter {
+            clue_letter,
+            word_idx,
+            clue_no,
+            ..
+        } = &cells[1][1].val
+        {
+            assert_eq!(*clue_letter, 'C');
+            assert!(matches!(word_idx, WordIdxDirection::Across(1)));
+            assert!(matches!(clue_no, ClueNoDirection::Across(2)));
+        } else {
+            panic!("Expected letter cell at (1,1)");
+        }
+
+        // (1,2) is 'E', crossing: across pos 2 (clue 2), down pos 1 (clue 1)
+        if let PuzzleCellValue::Letter {
+            clue_letter,
+            word_idx,
+            clue_no,
+            ..
+        } = &cells[1][2].val
+        {
+            assert_eq!(*clue_letter, 'E');
+            assert!(matches!(word_idx, WordIdxDirection::Cross(2, 1)));
+            assert!(matches!(clue_no, ClueNoDirection::Cross(2, 1)));
+        } else {
+            panic!("Expected letter cell at (1,2)");
+        }
+
+        // (2,2) is 'E', position 2 in down word (clue 1)
+        if let PuzzleCellValue::Letter {
+            clue_letter,
+            word_idx,
+            clue_no,
+            ..
+        } = &cells[2][2].val
+        {
+            assert_eq!(*clue_letter, 'E');
+            assert!(matches!(word_idx, WordIdxDirection::Down(2)));
+            assert!(matches!(clue_no, ClueNoDirection::Down(1)));
+        } else {
+            panic!("Expected letter cell at (2,2)");
+        }
+    }
 
     #[test]
     fn test_puzzle_cell_to_par() {
         type PC = PuzzleCell;
+        type WI = WordIdxDirection;
+        type CN = ClueNoDirection;
 
         #[rustfmt::skip]
         let cells = vec![
-            vec![PC::empty(),        PC::filled(),    PC::valnum('B', 12)],
-            vec![PC::valnum('A', 1), PC::valued('C'), PC::valued('E')],
-            vec![PC::filled(),       PC::filled(),    PC::empty()],
+            vec![PC::filled(),        PC::filled(),    PC::cheated('B', WI::Down(0), CN::Down(1))],
+            vec![PC::cheated('A', WI::Across(0), CN::Across(1) ), PC::valued('C', WI::Across(1), CN::Across(1)), PC::cheated('E', WI::Cross(2, 1), CN::Cross(1, 1)).as_selected()],
+            vec![PC::filled(),       PC::filled(),    PC::cheated('E', WI::Down(2), CN::Down( 1))],
         ];
 
         let grid = PuzzleGrid::new(cells);
