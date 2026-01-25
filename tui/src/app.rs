@@ -10,6 +10,7 @@ use std::time::Duration;
 pub enum AppView {
     #[default]
     Menu,
+    Help,
     Game(GameView),
 }
 
@@ -119,6 +120,7 @@ impl App {
     fn draw(&mut self, frame: &mut ratatui::Frame) {
         match self.view.clone() {
             AppView::Menu => self.draw_menu(frame),
+            AppView::Help => self.draw_help(frame),
             AppView::Game(view) => self.draw_game(view, frame),
         }
     }
@@ -148,6 +150,7 @@ impl App {
 
                     match self.view.clone() {
                         AppView::Menu => self.handle_menu_input(key),
+                        AppView::Help => self.handle_help_input(key),
                         AppView::Game(view) => self.handle_game_input(view, key),
                     }
                 }

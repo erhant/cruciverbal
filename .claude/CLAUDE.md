@@ -38,17 +38,19 @@ The main application binary that provides the interactive crossword solving expe
 - `app.rs` - Core application loop, event handling, and view management
 - `views/` - View modules for different screens
   - `menu.rs` - Main menu with navigation
+  - `help.rs` - Help screen with keyboard controls
   - `game/` - Game view components
     - `mod.rs` - Game state, input handling, and navigation logic
     - `grid.rs` - PuzzleGrid struct with rendering and selection management
     - `cell.rs` - PuzzleCell, PuzzleCellValue, ClueNoDirection, WordIdxDirection
-    - `boxchars.rs` - Unicode box-drawing character constants
+    - `constants.rs` - Unicode box-drawing character constants
 - `components/` - Reusable UI components (currently empty, for future use)
 
 **Key Components:**
 
 - `App` - Main application state machine with view switching
-- `AppView` enum - Menu vs Game view states
+- `AppView` enum - Menu, Help, or Game view states
+- `MenuItem` enum - Menu items (NewGame, Help, Exit)
 - `GameView` enum - Playing, Selecting, Loading, Saving states
 - `GameState` - Game state including:
   - `puzzle: Option<Puzzle>` - Raw puzzle data from puz_parse
@@ -72,11 +74,15 @@ The main application binary that provides the interactive crossword solving expe
   - `set_selection(row, col, direction)` - Cell and word selection with highlighting
   - `get()`, `get_mut()` - Cell access
   - `to_par()` - Convert to Ratatui Paragraph for rendering
+  - `reveal_word(clue_no, direction)` - Reveal all letters in a word
+  - `reveal_all()` - Reveal entire puzzle
 - `PuzzleCell` - Individual cell with:
   - `val: PuzzleCellValue` - Either `Filled` (black) or `Letter` with clue data
   - `is_selected_cell: bool` - Whether this is the cursor cell (yellow)
   - `is_selected_word: bool` - Whether this cell is part of the selected word (cyan)
   - `set_user_letter()`, `get_user_letter()` - User input management
+  - `reveal()` - Set user_letter to clue_letter (reveal correct answer)
+  - `is_empty()` - Check if cell has no user input
   - `clue_no_for_direction()`, `word_idx_for_direction()`, `has_direction()` - Direction helpers
 - `ClueNoDirection` - Tracks which clue number(s) the cell belongs to (Across/Down/Cross)
 - `WordIdxDirection` - Tracks 0-based position within the word(s)
@@ -159,9 +165,13 @@ Centered form with:
   - ESC: Back to menu
 - **Game (Playing):**
   - Arrow keys: Navigate between cells (skips filled/black cells)
+  - SHIFT + Arrow keys: Jump to next empty cell in a different clue word
   - A-Z: Enter letter in current cell (auto-uppercased)
   - Backspace/Delete: Clear current cell
   - SPACEBAR: Toggle direction (Across ↔ Down)
+  - CTRL+R: Reveal current letter
+  - SHIFT+CTRL+R: Reveal current word
+  - ALT+CTRL+R: Reveal entire puzzle
   - ESC: Back to menu
 
 ## Development Notes
@@ -179,11 +189,12 @@ Centered form with:
 - Timer display in top bar
 - Auto-scroll keeps selection visible
 - Scrollbars for large puzzles
+- Reveal functionality (letter, word, or full puzzle)
 
 ### Known Limitations
 
 - Only one provider implemented (Lovatt's Cryptic)
-- No rebus square support (noted in tui/src/lib.rs:15)
+- No rebus square support (noted in tui/src/lib.rs:12)
 - No answer validation/checking yet
 - No save/load game progress
 - Error handling incomplete in some areas (todo!() macros present)
@@ -191,12 +202,10 @@ Centered form with:
 
 ### Planned Features (from code TODOs)
 
-From tui/src/lib.rs:7-15:
+From tui/src/lib.rs:
 
 - Save progress locally (CTRL+S)
-- Toggle timer (CTRL+T)
-- Reveal answers (CTRL+R)
-- Improved quit handling (CTRL+Q)
+- Rebus square support (multiple letters per cell)
 
 ### Configuration
 
