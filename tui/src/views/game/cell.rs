@@ -1,6 +1,6 @@
 use super::constants::*;
 use ratatui::{
-    style::{Color, Style},
+    style::{Color, Style, Stylize},
     text::Span,
 };
 
@@ -258,18 +258,25 @@ impl PuzzleCell {
                     _ => None,
                 };
 
+                let no_style = if self.is_selected_cell {
+                    Style::default().fg(Color::Yellow)
+                } else if self.is_selected_word {
+                    Style::default().fg(Color::Cyan)
+                } else {
+                    border_style
+                };
                 match no {
                     None => (
                         Span::styled(BOX_H.to_string(), border_style),
                         Span::styled(BOX_H.to_string(), border_style),
                     ),
                     Some(n) if n < 10 => (
-                        Span::raw(n.to_string()),
+                        Span::styled(n.to_string(), no_style),
                         Span::styled(BOX_H.to_string(), border_style),
                     ),
                     Some(n) => (
-                        Span::raw((n / 10).to_string()),
-                        Span::raw((n % 10).to_string()),
+                        Span::styled((n / 10).to_string(), no_style),
+                        Span::styled((n % 10).to_string(), no_style),
                     ),
                 }
             }
@@ -277,8 +284,10 @@ impl PuzzleCell {
     }
 
     pub fn to_selection_span(&self) -> Span {
-        if self.is_selected_cell || self.is_selected_word {
-            Span::raw("_")
+        if self.is_selected_cell {
+            Span::raw("^").style(Style::default().fg(Color::Yellow).bold().underlined())
+        } else if self.is_selected_word {
+            Span::raw("_").style(Style::default().fg(Color::Cyan))
         } else {
             Span::raw(" ")
         }

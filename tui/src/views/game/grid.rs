@@ -295,17 +295,9 @@ impl PuzzleGrid {
             for (col_idx, cell) in cell_line.iter().enumerate() {
                 let is_last_col = col_idx == num_cols - 1;
 
-                let border_style = if cell.is_selected_cell {
-                    // Cursor cell: yellow bold
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(ratatui::style::Modifier::BOLD)
-                } else if cell.is_selected_word {
-                    // Word cell: cyan
-                    Style::default().fg(Color::Cyan)
-                } else {
-                    Style::default().fg(Color::White)
-                };
+                // since our borders are not complete per cell, its a bit harder
+                // to set a style based on a single cell, so just default to white
+                let border_style = Style::default().fg(Color::White);
 
                 // cell-spans
                 let val_span = cell.to_val_span();
