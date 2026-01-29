@@ -88,8 +88,10 @@ impl App {
     async fn download_puzzle(&mut self) {
         use crate::game::GameView;
         use cruciverbal_providers::PuzzleProvider;
+        use cruciverbal_providers::providers::*;
 
         let date = self.state.game.selection.date.clone();
+        let use_latest = self.state.game.selection.use_latest;
         let provider = PuzzleProvider::ALL
             .get(self.state.game.selection.provider_idx)
             .copied()
@@ -97,14 +99,106 @@ impl App {
 
         let result = match provider {
             PuzzleProvider::LovattsCryptic => {
-                cruciverbal_providers::providers::lovatts_cryptic::download(&date).await
+                if use_latest {
+                    lovatts_cryptic::download(&chrono::Local::now().format("%Y-%m-%d").to_string())
+                        .await
+                } else {
+                    lovatts_cryptic::download(&date).await
+                }
+            }
+            // Guardian variants
+            PuzzleProvider::GuardianCryptic => {
+                if use_latest {
+                    guardian::download_latest(guardian::GuardianVariant::Cryptic).await
+                } else {
+                    // Guardian doesn't support date-based download, use latest
+                    guardian::download_latest(guardian::GuardianVariant::Cryptic).await
+                }
+            }
+            PuzzleProvider::GuardianEveryman => {
+                guardian::download_latest(guardian::GuardianVariant::Everyman).await
+            }
+            PuzzleProvider::GuardianSpeedy => {
+                guardian::download_latest(guardian::GuardianVariant::Speedy).await
+            }
+            PuzzleProvider::GuardianQuick => {
+                guardian::download_latest(guardian::GuardianVariant::Quick).await
+            }
+            PuzzleProvider::GuardianPrize => {
+                guardian::download_latest(guardian::GuardianVariant::Prize).await
+            }
+            PuzzleProvider::GuardianWeekend => {
+                guardian::download_latest(guardian::GuardianVariant::Weekend).await
+            }
+            PuzzleProvider::GuardianQuiptic => {
+                guardian::download_latest(guardian::GuardianVariant::Quiptic).await
+            }
+            // Washington Post
+            PuzzleProvider::WashingtonPost => {
+                if use_latest {
+                    wapo::download_latest().await
+                } else {
+                    // WaPo expects date in YYYY/MM/DD format
+                    let wapo_date = date.replace('-', "/");
+                    wapo::download(&wapo_date).await
+                }
+            }
+            // USA Today
+            PuzzleProvider::UsaToday => {
+                if use_latest {
+                    usa_today::download_latest().await
+                } else {
+                    usa_today::download(&date).await
+                }
+            }
+            // Simply Daily variants
+            PuzzleProvider::SimplyDaily => {
+                if use_latest {
+                    simply_daily::download_latest(simply_daily::SimplyDailyVariant::Regular).await
+                } else {
+                    simply_daily::download(simply_daily::SimplyDailyVariant::Regular, &date).await
+                }
+            }
+            PuzzleProvider::SimplyDailyCryptic => {
+                if use_latest {
+                    simply_daily::download_latest(simply_daily::SimplyDailyVariant::Cryptic).await
+                } else {
+                    simply_daily::download(simply_daily::SimplyDailyVariant::Cryptic, &date).await
+                }
+            }
+            PuzzleProvider::SimplyDailyQuick => {
+                if use_latest {
+                    simply_daily::download_latest(simply_daily::SimplyDailyVariant::Quick).await
+                } else {
+                    simply_daily::download(simply_daily::SimplyDailyVariant::Quick, &date).await
+                }
+            }
+            // Universal
+            PuzzleProvider::Universal => {
+                if use_latest {
+                    universal::download_latest().await
+                } else {
+                    universal::download(&date).await
+                }
+            }
+            // Daily Pop
+            PuzzleProvider::DailyPop => {
+                if use_latest {
+                    daily_pop::download_latest().await
+                } else {
+                    daily_pop::download(&date).await
+                }
             }
         };
 
         match result {
             Ok(puzzle) => {
                 self.state.game.puzzle = Some(puzzle);
-                self.state.game.puzzle_date = Some(date);
+                self.state.game.puzzle_date = if use_latest {
+                    Some("Latest".to_string())
+                } else {
+                    Some(date)
+                };
                 self.state.game.grid = None; // Will be built on first draw
                 self.state.game.start_time = None; // Will be set on first draw
                 self.view = AppView::Game(GameView::Playing);

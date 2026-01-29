@@ -88,6 +88,8 @@ impl SelectionField {
 pub struct SelectionState {
     /// Date input string (YYYY-MM-DD format).
     pub date: String,
+    /// Whether to use "latest" puzzle instead of specific date.
+    pub use_latest: bool,
     /// Currently selected provider index.
     pub provider_idx: usize,
     /// Which field is currently active.
@@ -98,10 +100,11 @@ pub struct SelectionState {
 
 impl Default for SelectionState {
     fn default() -> Self {
-        // Default to today's date
+        // Default to "latest" mode
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         Self {
             date: today,
+            use_latest: true,
             provider_idx: 0,
             active_field: SelectionField::Date,
             error: None,
@@ -254,20 +257,32 @@ impl App {
         } else {
             Style::default().fg(Color::White)
         };
+        let date_title = if selection.use_latest {
+            " Date "
+        } else {
+            " Date (YYYY-MM-DD) "
+        };
         let date_block = Block::default()
-            .title(" Date (YYYY-MM-DD) ")
+            .title(date_title)
             .borders(Borders::ALL)
             .border_style(date_style);
         let date_inner = date_block.inner(rows[0]);
         frame.render_widget(date_block, rows[0]);
 
-        let cursor_char = if selection.active_field == SelectionField::Date {
-            "_"
+        let date_text = if selection.use_latest {
+            "< Latest >".to_string()
         } else {
-            ""
+            let cursor_char = if selection.active_field == SelectionField::Date {
+                "_"
+            } else {
+                ""
+            };
+            format!("< {} >", format!("{}{}", selection.date, cursor_char))
         };
-        let date_text = format!("{}{}", selection.date, cursor_char);
-        frame.render_widget(Paragraph::new(date_text).style(date_style), date_inner);
+        frame.render_widget(
+            Paragraph::new(date_text).style(date_style).centered(),
+            date_inner,
+        );
 
         // render provider field
         let provider_style = if selection.active_field == SelectionField::Provider {
@@ -348,7 +363,19 @@ impl App {
         ]);
         let [_, content_area, _] = vertical.areas(area);
 
-        let loading_text = format!("Loading puzzle for {}...", self.state.game.selection.date);
+        let provider_name = PuzzleProvider::ALL
+            .get(self.state.game.selection.provider_idx)
+            .map(|p| p.name())
+            .unwrap_or("Unknown");
+
+        let loading_text = if self.state.game.selection.use_latest {
+            format!("Loading latest {} puzzle...", provider_name)
+        } else {
+            format!(
+                "Loading {} puzzle for {}...",
+                provider_name, self.state.game.selection.date
+            )
+        };
         frame.render_widget(
             Paragraph::new(loading_text)
                 .style(Style::default().fg(Color::Cyan))
@@ -796,28 +823,44 @@ impl App {
             }
 
             KeyCode::Left => {
-                if self.state.game.selection.active_field == SelectionField::Provider {
-                    let len = PuzzleProvider::ALL.len();
-                    if self.state.game.selection.provider_idx == 0 {
-                        self.state.game.selection.provider_idx = len - 1;
-                    } else {
-                        self.state.game.selection.provider_idx -= 1;
+                match self.state.game.selection.active_field {
+                    SelectionField::Date => {
+                        // Toggle between "Latest" and date input
+                        self.state.game.selection.use_latest =
+                            !self.state.game.selection.use_latest;
                     }
+                    SelectionField::Provider => {
+                        let len = PuzzleProvider::ALL.len();
+                        if self.state.game.selection.provider_idx == 0 {
+                            self.state.game.selection.provider_idx = len - 1;
+                        } else {
+                            self.state.game.selection.provider_idx -= 1;
+                        }
+                    }
+                    _ => {}
                 }
             }
 
             KeyCode::Right => {
-                if self.state.game.selection.active_field == SelectionField::Provider {
-                    let len = PuzzleProvider::ALL.len();
-                    self.state.game.selection.provider_idx =
-                        (self.state.game.selection.provider_idx + 1) % len;
+                match self.state.game.selection.active_field {
+                    SelectionField::Date => {
+                        // Toggle between "Latest" and date input
+                        self.state.game.selection.use_latest =
+                            !self.state.game.selection.use_latest;
+                    }
+                    SelectionField::Provider => {
+                        let len = PuzzleProvider::ALL.len();
+                        self.state.game.selection.provider_idx =
+                            (self.state.game.selection.provider_idx + 1) % len;
+                    }
+                    _ => {}
                 }
             }
 
             KeyCode::Enter => {
                 if self.state.game.selection.active_field == SelectionField::Start {
-                    // Validate date format before starting
-                    if self.validate_date() {
+                    // Validate date format before starting (skip if using "Latest")
+                    if self.state.game.selection.use_latest || self.validate_date() {
                         self.state.game.selection.error = None;
                         self.view = AppView::Game(GameView::Loading);
                     }
@@ -830,17 +873,21 @@ impl App {
 
             KeyCode::Char(c) => {
                 let is_date_field = self.state.game.selection.active_field == SelectionField::Date;
+                let is_not_latest = !self.state.game.selection.use_latest;
                 let is_valid_char = c.is_ascii_digit() || c == '-';
                 let has_room = self.state.game.selection.date.len() < 10;
 
-                if is_date_field && is_valid_char && has_room {
+                if is_date_field && is_not_latest && is_valid_char && has_room {
                     self.state.game.selection.date.push(c);
                     self.state.game.selection.error = None;
                 }
             }
 
             KeyCode::Backspace => {
-                if self.state.game.selection.active_field == SelectionField::Date {
+                let is_date_field = self.state.game.selection.active_field == SelectionField::Date;
+                let is_not_latest = !self.state.game.selection.use_latest;
+
+                if is_date_field && is_not_latest {
                     self.state.game.selection.date.pop();
                     self.state.game.selection.error = None;
                 }
