@@ -13,8 +13,10 @@ Cruciverbal is a terminal-based crossword puzzle player written in Rust. The app
 - Interactive puzzle solving with keyboard navigation
 - Auto-scrolling to keep selected cell visible
 - Direction toggling (Across/Down) with word highlighting
-- 3-area game layout: top bar (date, title, timer), grid, bottom bar (clue)
+- 3-area game layout: top bar (date, title, completion%, timer), grid, bottom bar (clue)
 - Puzzle selection screen with date picker and provider selector
+- Completion tracking with percentage display and win detection
+- Congratulations popup on puzzle completion with time display
 
 **Tech Stack:**
 
@@ -51,7 +53,8 @@ The main application binary that provides the interactive crossword solving expe
 - `App` - Main application state machine with view switching
 - `AppView` enum - Menu, Help, or Game view states
 - `MenuItem` enum - Menu items (NewGame, Help, Exit)
-- `GameView` enum - Playing, Selecting, Loading, Saving states
+- `GameView` enum - Playing, Selecting, Loading, Saving, Completed, CompletedPlaying states
+- `CompletionState` enum - InProgress, IncorrectFill, Correct
 - `GameState` - Game state including:
   - `puzzle: Option<Puzzle>` - Raw puzzle data from puz_parse
   - `grid: Option<PuzzleGrid>` - Playable grid built from puzzle
@@ -60,6 +63,9 @@ The main application binary that provides the interactive crossword solving expe
   - `puzzle_date: Option<String>` - Date of the loaded puzzle
   - `start_time: Option<Instant>` - Timer start time
   - `selection: SelectionState` - State for puzzle selection screen
+  - `completion_state: CompletionState` - Current completion state
+  - `completion_time: Option<Duration>` - Final time when puzzle is completed
+  - `completed_popup_selection: usize` - Selected option in completion popup
   - `visible_area`, `scroll_cur`, `scroll_max`, `scroll_bar` - Viewport/scrolling state
 - `SelectionState` - State for puzzle selection:
   - `date: String` - Date input (YYYY-MM-DD)
@@ -76,6 +82,10 @@ The main application binary that provides the interactive crossword solving expe
   - `to_par()` - Convert to Ratatui Paragraph for rendering
   - `reveal_word(clue_no, direction)` - Reveal all letters in a word
   - `reveal_all()` - Reveal entire puzzle
+  - `count_total_letters()` - Count all letter cells
+  - `count_filled_letters()` - Count cells with user input
+  - `completion_percentage()` - Get fill percentage (0-100)
+  - `is_fully_correct()` - Check if all letters match solution
 - `PuzzleCell` - Individual cell with:
   - `val: PuzzleCellValue` - Either `Filled` (black) or `Letter` with clue data
   - `is_selected_cell: bool` - Whether this is the cursor cell (yellow)
@@ -83,6 +93,7 @@ The main application binary that provides the interactive crossword solving expe
   - `set_user_letter()`, `get_user_letter()` - User input management
   - `reveal()` - Set user_letter to clue_letter (reveal correct answer)
   - `is_empty()` - Check if cell has no user input
+  - `is_correct()` - Check if user_letter matches clue_letter
   - `clue_no_for_direction()`, `word_idx_for_direction()`, `has_direction()` - Direction helpers
 - `ClueNoDirection` - Tracks which clue number(s) the cell belongs to (Across/Down/Cross)
 - `WordIdxDirection` - Tracks 0-based position within the word(s)
@@ -179,7 +190,8 @@ Centered form with:
 ### Current State
 
 - **Fully playable** crossword puzzle experience
-- Menu system with New Game option
+- Menu system with New Game and Help options
+- Help screen with keyboard controls reference
 - Puzzle selection screen with date picker and provider selector
 - Async puzzle download with error handling
 - Grid rendering with proper border handling
@@ -187,6 +199,9 @@ Centered form with:
 - Yellow highlighting for cursor, cyan for word
 - Clue display in bottom bar based on active direction
 - Timer display in top bar
+- Completion percentage tracking in top bar
+- Win detection with congratulations popup
+- Post-completion browsing mode (timer frozen)
 - Auto-scroll keeps selection visible
 - Scrollbars for large puzzles
 - Reveal functionality (letter, word, or full puzzle)

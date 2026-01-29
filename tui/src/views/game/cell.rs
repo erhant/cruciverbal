@@ -226,60 +226,52 @@ impl PuzzleCell {
         }
     }
 
+    /// Returns spans for the clue number area (two characters).
+    ///
+    /// A clue number is displayed only at the start of a word (word index 0).
+    /// Single-digit numbers use one span, two-digit numbers use both.
     pub fn to_no_spans(&self, border_style: Style) -> (Span, Span) {
-        match &self.val {
-            // no clue number for filled cells
-            PuzzleCellValue::Filled => (
-                Span::styled(BOX_H.to_string(), border_style),
-                Span::styled(BOX_H.to_string(), border_style),
-            ),
-            PuzzleCellValue::Letter {
-                clue_no, word_idx, ..
-            } => {
-                let no = match (clue_no, word_idx) {
-                    // if across & its the first letter of the word
-                    (
-                        ClueNoDirection::Across(n),
-                        WordIdxDirection::Across(0) | WordIdxDirection::Cross(0, _),
-                    ) => Some(*n),
-                    // if down & its the first letter of the word
-                    (
-                        ClueNoDirection::Down(n),
-                        WordIdxDirection::Down(0) | WordIdxDirection::Cross(_, 0),
-                    ) => Some(*n),
-                    // if cross & its the first letter of BOTH words
-                    (ClueNoDirection::Cross(a, d), WordIdxDirection::Cross(0, 0)) => {
-                        assert!(a == d);
-                        Some(*a)
-                    }
-                    // if cross & its the first letter of either words
-                    (ClueNoDirection::Cross(a, _), WordIdxDirection::Cross(0, _)) => Some(*a),
-                    (ClueNoDirection::Cross(_, d), WordIdxDirection::Cross(_, 0)) => Some(*d),
-                    _ => None,
-                };
+        let h_span = || Span::styled(BOX_H.to_string(), border_style);
 
-                let no_style = if self.is_selected_cell {
-                    Style::default().fg(Color::Yellow)
-                } else if self.is_selected_word {
-                    Style::default().fg(Color::Cyan)
-                } else {
-                    border_style
-                };
-                match no {
-                    None => (
-                        Span::styled(BOX_H.to_string(), border_style),
-                        Span::styled(BOX_H.to_string(), border_style),
-                    ),
-                    Some(n) if n < 10 => (
-                        Span::styled(n.to_string(), no_style),
-                        Span::styled(BOX_H.to_string(), border_style),
-                    ),
-                    Some(n) => (
-                        Span::styled((n / 10).to_string(), no_style),
-                        Span::styled((n % 10).to_string(), no_style),
-                    ),
-                }
+        let PuzzleCellValue::Letter {
+            clue_no, word_idx, ..
+        } = &self.val
+        else {
+            return (h_span(), h_span());
+        };
+
+        // Determine the clue number to display (only at word start, index 0)
+        let clue_number = match (clue_no, word_idx) {
+            (ClueNoDirection::Across(n), WordIdxDirection::Across(0) | WordIdxDirection::Cross(0, _)) => Some(*n),
+            (ClueNoDirection::Down(n), WordIdxDirection::Down(0) | WordIdxDirection::Cross(_, 0)) => Some(*n),
+            (ClueNoDirection::Cross(a, d), WordIdxDirection::Cross(0, 0)) => {
+                debug_assert_eq!(a, d, "Cross cell at (0,0) should have same clue number");
+                Some(*a)
             }
+            (ClueNoDirection::Cross(a, _), WordIdxDirection::Cross(0, _)) => Some(*a),
+            (ClueNoDirection::Cross(_, d), WordIdxDirection::Cross(_, 0)) => Some(*d),
+            _ => None,
+        };
+
+        let Some(n) = clue_number else {
+            return (h_span(), h_span());
+        };
+
+        let no_style = if self.is_selected_cell {
+            Style::default().fg(Color::Yellow)
+        } else if self.is_selected_word {
+            Style::default().fg(Color::Cyan)
+        } else {
+            border_style
+        };
+
+        if n < 10 {
+            (Span::styled(n.to_string(), no_style), h_span())
+        } else {
+            (
+                Span::styled((n / 10).to_string(), no_style),
+                Span::styled((n % 10).to_string(), no_style),
+            )
         }
     }
 
@@ -323,14 +315,22 @@ impl PuzzleCell {
 
     /// Check if this cell belongs to a word in the given direction.
     pub fn has_direction(&self, direction: Direction) -> bool {
+        self.clue_no_for_direction(direction).is_some()
+    }
+
+    /// Check if the user's letter matches the clue letter.
+    ///
+    /// Returns `None` if the cell is filled or has no user letter.
+    /// Returns `Some(true)` if user_letter matches clue_letter.
+    /// Returns `Some(false)` if they don't match.
+    pub fn is_correct(&self) -> Option<bool> {
         match &self.val {
-            PuzzleCellValue::Filled => false,
-            PuzzleCellValue::Letter { clue_no, .. } => match (clue_no, direction) {
-                (ClueNoDirection::Across(_), Direction::Across) => true,
-                (ClueNoDirection::Down(_), Direction::Down) => true,
-                (ClueNoDirection::Cross(_, _), _) => true,
-                _ => false,
-            },
+            PuzzleCellValue::Filled => None,
+            PuzzleCellValue::Letter {
+                clue_letter,
+                user_letter,
+                ..
+            } => user_letter.map(|u| u == *clue_letter),
         }
     }
 }

@@ -14,11 +14,11 @@ pub struct PuzzleGrid {
 }
 
 impl PuzzleGrid {
-    pub fn cells(&self) -> &Vec<Vec<PuzzleCell>> {
+    pub fn cells(&self) -> &[Vec<PuzzleCell>] {
         &self.cells
     }
 
-    pub fn cells_mut(&mut self) -> &mut Vec<Vec<PuzzleCell>> {
+    pub fn cells_mut(&mut self) -> &mut [Vec<PuzzleCell>] {
         &mut self.cells
     }
 
@@ -83,35 +83,29 @@ impl PuzzleGrid {
 
     /// Clear all cell and word selections in the grid.
     pub fn clear_all_selections(&mut self) {
-        for row in self.cells.iter_mut() {
-            for cell in row.iter_mut() {
-                cell.clear_selection();
-            }
-        }
+        self.cells
+            .iter_mut()
+            .flat_map(|row| row.iter_mut())
+            .for_each(|cell| cell.clear_selection());
     }
 
     /// Reveal all cells in a word with the given clue number and direction.
     ///
     /// This sets each cell's user_letter to its clue_letter.
     pub fn reveal_word(&mut self, clue_no: usize, direction: Direction) {
-        for row in self.cells.iter_mut() {
-            for cell in row.iter_mut() {
-                if let Some(cell_clue) = cell.clue_no_for_direction(direction) {
-                    if cell_clue == clue_no {
-                        cell.reveal();
-                    }
-                }
-            }
-        }
+        self.cells
+            .iter_mut()
+            .flat_map(|row| row.iter_mut())
+            .filter(|cell| cell.clue_no_for_direction(direction) == Some(clue_no))
+            .for_each(|cell| cell.reveal());
     }
 
     /// Reveal all cells in the grid.
     pub fn reveal_all(&mut self) {
-        for row in self.cells.iter_mut() {
-            for cell in row.iter_mut() {
-                cell.reveal();
-            }
-        }
+        self.cells
+            .iter_mut()
+            .flat_map(|row| row.iter_mut())
+            .for_each(|cell| cell.reveal());
     }
 
     /// Find the first non-filled cell in the grid (for initial selection).
@@ -124,6 +118,45 @@ impl PuzzleGrid {
             }
         }
         None
+    }
+
+    /// Count the total number of letter cells (excluding filled/black cells).
+    pub fn count_total_letters(&self) -> usize {
+        self.cells
+            .iter()
+            .flat_map(|row| row.iter())
+            .filter(|cell| !cell.is_filled())
+            .count()
+    }
+
+    /// Count the number of letter cells that have a user-entered letter.
+    pub fn count_filled_letters(&self) -> usize {
+        self.cells
+            .iter()
+            .flat_map(|row| row.iter())
+            .filter(|cell| cell.get_user_letter().is_some())
+            .count()
+    }
+
+    /// Check if all letter cells have been filled correctly.
+    ///
+    /// Returns `true` if every letter cell has a user_letter that matches clue_letter.
+    pub fn is_fully_correct(&self) -> bool {
+        self.cells
+            .iter()
+            .flat_map(|row| row.iter())
+            .filter(|cell| !cell.is_filled())
+            .all(|cell| cell.is_correct() == Some(true))
+    }
+
+    /// Get completion percentage (0-100).
+    pub fn completion_percentage(&self) -> u8 {
+        let total = self.count_total_letters();
+        if total == 0 {
+            return 100;
+        }
+        let filled = self.count_filled_letters();
+        ((filled * 100) / total) as u8
     }
 
     /// Create a new [`PuzzleGrid`] from a 2D vector of [`PuzzleCell`]s.
@@ -274,128 +307,78 @@ impl PuzzleGrid {
 
     /// Convert a [`PuzzleCell`] grid to a [`Paragraph`] for rendering.
     ///
-    /// Draws the left & top borders of each cell only once, so that adjacent cells share borders.
-    /// Then, the right & bottom borders are drawn only for the last row/column of cells.
+    /// Each cell is 4 characters wide by 4 lines tall. Adjacent cells share borders,
+    /// so we only draw the left and top borders for each cell, plus the right and
+    /// bottom borders for the last column/row.
     pub fn to_par(&self) -> Paragraph {
-        let empty_span = Span::raw(" "); // for re-use
-
         let num_rows = self.cells.len();
         let num_cols = self.cells[0].len();
+        let border_style = Style::default().fg(Color::White);
+
+        // Helper closures for common spans
+        let h_span = || Span::styled(BOX_H.to_string(), border_style);
+        let v_span = || Span::styled(BOX_V.to_string(), border_style);
+        let empty = || Span::raw(" ");
+        let corner = |c: char| Span::styled(c.to_string(), border_style);
+
         let mut all_lines: Vec<Line> = Vec::new();
 
-        for (row_idx, cell_line) in self.cells.iter().enumerate() {
+        for (row_idx, cell_row) in self.cells.iter().enumerate() {
+            let is_first_row = row_idx == 0;
             let is_last_row = row_idx == num_rows - 1;
 
-            // Each row of cells produces either 4 or 5 lines:
-            // - Always: top border + 3 content lines
-            // - Only for last row: bottom border line
+            // Each cell row produces 4 lines (5 for last row to include bottom border)
             let num_lines = if is_last_row { 5 } else { 4 };
             let mut span_groups: Vec<Vec<Span>> = vec![Vec::new(); num_lines];
 
-            for (col_idx, cell) in cell_line.iter().enumerate() {
+            for (col_idx, cell) in cell_row.iter().enumerate() {
+                let is_first_col = col_idx == 0;
                 let is_last_col = col_idx == num_cols - 1;
 
-                // since our borders are not complete per cell, its a bit harder
-                // to set a style based on a single cell, so just default to white
-                let border_style = Style::default().fg(Color::White);
-
-                // cell-spans
                 let val_span = cell.to_val_span();
                 let selection_span = cell.to_selection_span();
                 let (no_span_1, no_span_2) = cell.to_no_spans(border_style);
 
-                // horizontal & vertical line spans
-                let h_span = Span::styled(BOX_H.to_string(), border_style);
-                let v_span = Span::styled(BOX_V.to_string(), border_style);
-
-                // top-left corner logic
-                let tl_span = if row_idx == 0 && col_idx == 0 {
-                    Span::styled(BOX_TL.to_string(), border_style)
-                } else if row_idx == 0 {
-                    Span::styled(BOX_T.to_string(), border_style)
-                } else if col_idx == 0 {
-                    Span::styled(BOX_L.to_string(), border_style)
-                } else {
-                    Span::styled(BOX_X.to_string(), border_style)
+                // Top-left corner: depends on position in grid
+                let tl_corner = match (is_first_row, is_first_col) {
+                    (true, true) => BOX_TL,
+                    (true, false) => BOX_T,
+                    (false, true) => BOX_L,
+                    (false, false) => BOX_X,
                 };
+                span_groups[0].extend([corner(tl_corner), no_span_1, no_span_2, h_span()]);
 
-                // top line: always draw left border + top border + content
-                #[rustfmt::skip]
-                span_groups[0].extend([
-                    tl_span,
-                    no_span_1,
-                    no_span_2,
-                    h_span.clone(),
-                ]);
-
-                // add top-right corner only for last column
+                // Top-right corner for last column
                 if is_last_col {
-                    let tr_span = if row_idx == 0 {
-                        Span::styled(BOX_TR.to_string(), border_style)
-                    } else {
-                        Span::styled(BOX_R.to_string(), border_style)
-                    };
-                    span_groups[0].push(tr_span);
+                    let tr_corner = if is_first_row { BOX_TR } else { BOX_R };
+                    span_groups[0].push(corner(tr_corner));
                 }
 
-                // content lines (3 lines): always draw left border + content
-                #[rustfmt::skip]
-                span_groups[1].extend([
-                    v_span.clone(),
-                    empty_span.clone(),
-                    empty_span.clone(),
-                    empty_span.clone(),
-                ]);
+                // Content lines (3 lines with left border)
+                span_groups[1].extend([v_span(), empty(), empty(), empty()]);
+                span_groups[2].extend([v_span(), empty(), val_span, empty()]);
+                span_groups[3].extend([v_span(), empty(), selection_span, empty()]);
 
-                #[rustfmt::skip]
-                span_groups[2].extend([
-                    v_span.clone(),
-                    empty_span.clone(),
-                    val_span,
-                    empty_span.clone(),
-                ]);
-
-                #[rustfmt::skip]
-                span_groups[3].extend([
-                    v_span.clone(),
-                    empty_span.clone(),
-                    selection_span,
-                    empty_span.clone(),
-                ]);
-
-                // add right border only for last column
+                // Right border for last column
                 if is_last_col {
-                    span_groups[1].push(v_span.clone());
-                    span_groups[2].push(v_span.clone());
-                    span_groups[3].push(v_span.clone());
+                    span_groups[1].push(v_span());
+                    span_groups[2].push(v_span());
+                    span_groups[3].push(v_span());
                 }
 
-                // bottom line: only for last row
+                // Bottom border for last row
                 if is_last_row {
-                    let bl_span = if col_idx == 0 {
-                        Span::styled(BOX_BL.to_string(), border_style)
-                    } else {
-                        Span::styled(BOX_B.to_string(), border_style)
-                    };
+                    let bl_corner = if is_first_col { BOX_BL } else { BOX_B };
+                    span_groups[4].extend([corner(bl_corner), h_span(), h_span(), h_span()]);
 
-                    #[rustfmt::skip]
-                    span_groups[4].extend([
-                        bl_span,
-                        h_span.clone(),
-                        h_span.clone(),
-                        h_span.clone(),
-                    ]);
-
-                    // add bottom-right corner only for last column
                     if is_last_col {
-                        span_groups[4].push(Span::styled(BOX_BR.to_string(), border_style));
+                        span_groups[4].push(corner(BOX_BR));
                     }
                 }
             }
 
-            // Convert span vecs to lines and add to all_lines
-            for span_group in span_groups {
-                all_lines.push(Line::from_iter(span_group));
+            for spans in span_groups {
+                all_lines.push(Line::from_iter(spans));
             }
         }
 

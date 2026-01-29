@@ -7,7 +7,15 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// Format a duration as MM:SS, defaulting to "00:00" if None.
+fn format_duration(duration: Option<Duration>) -> String {
+    match duration {
+        Some(d) => format!("{:02}:{:02}", d.as_secs() / 60, d.as_secs() % 60),
+        None => "00:00".to_string(),
+    }
+}
 
 mod constants;
 
@@ -28,6 +36,22 @@ pub enum GameView {
     Loading,
     /// User is saving the current puzzle to file.
     Saving,
+    /// Puzzle is completed correctly, showing congratulations popup.
+    Completed,
+    /// User continues playing after completion (timer stopped, no validation).
+    CompletedPlaying,
+}
+
+/// Completion state for the puzzle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CompletionState {
+    /// Puzzle is not fully filled yet.
+    #[default]
+    InProgress,
+    /// Puzzle is 100% filled but has incorrect letters.
+    IncorrectFill,
+    /// Puzzle is 100% filled and all letters are correct.
+    Correct,
 }
 
 /// Which field is currently active in the selection screen.
@@ -112,6 +136,15 @@ pub struct GameState {
     /// State for the puzzle selection screen.
     pub selection: SelectionState,
 
+    /// Current completion state of the puzzle.
+    pub completion_state: CompletionState,
+
+    /// Final completion time (set when puzzle is completed correctly).
+    pub completion_time: Option<Duration>,
+
+    /// Selected option in the completion popup (0 = Continue, 1 = Menu).
+    pub completed_popup_selection: usize,
+
     /* scrollbar stuff */
     /// Current scroll position (vertical, horizontal).
     pub scroll_cur: (u16, u16),
@@ -133,6 +166,9 @@ impl Default for GameState {
             puzzle_date: None,
             start_time: None,
             selection: SelectionState::default(),
+            completion_state: CompletionState::default(),
+            completion_time: None,
+            completed_popup_selection: 0,
             scroll_cur: (0, 0),
             scroll_max: (0, 0),
             scroll_bar: (ScrollbarState::default(), ScrollbarState::default()),
@@ -152,6 +188,9 @@ impl GameState {
         self.puzzle_date = None;
         self.start_time = None;
         self.selection = SelectionState::default();
+        self.completion_state = CompletionState::default();
+        self.completion_time = None;
+        self.completed_popup_selection = 0;
         self.scroll_cur = (0, 0);
         self.scroll_max = (0, 0);
         self.scroll_bar = (ScrollbarState::default(), ScrollbarState::default());
@@ -161,9 +200,11 @@ impl GameState {
 impl App {
     pub fn draw_game(&mut self, view: GameView, frame: &mut ratatui::Frame) {
         match view {
-            GameView::Playing => self.draw_game_playing(frame),
+            GameView::Playing => self.draw_game_playing(frame, false),
+            GameView::CompletedPlaying => self.draw_game_playing(frame, true),
             GameView::Selecting => self.draw_game_selecting(frame),
             GameView::Loading => self.draw_game_loading(frame),
+            GameView::Completed => self.draw_game_completed(frame),
             GameView::Saving => todo!(),
         }
     }
@@ -316,7 +357,7 @@ impl App {
         );
     }
 
-    fn draw_game_playing(&mut self, frame: &mut ratatui::Frame) {
+    fn draw_game_playing(&mut self, frame: &mut ratatui::Frame, is_completed: bool) {
         // initialize grid from puzzle if not already done
         if self.state.game.grid.is_none() {
             if let Some(puzzle) = self.state.game.puzzle.as_ref() {
@@ -377,7 +418,7 @@ impl App {
         let bottom_area = layout[4];
 
         // === TOP BAR ===
-        self.draw_top_bar(frame, top_area);
+        self.draw_top_bar(frame, top_area, is_completed);
 
         // === GRID ===
         self.state.game.visible_area = (grid_area.width, grid_area.height);
@@ -448,8 +489,8 @@ impl App {
         self.draw_clue_bar(frame, bottom_area);
     }
 
-    /// Draw the top bar: date (left), title (center), timer (right).
-    fn draw_top_bar(&self, frame: &mut ratatui::Frame, area: Rect) {
+    /// Draw the top bar: date (left), title (center), completion% + timer (right).
+    fn draw_top_bar(&self, frame: &mut ratatui::Frame, area: Rect, is_completed: bool) {
         let block = Block::default()
             .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
             .border_style(Style::default().fg(Color::DarkGray));
@@ -466,20 +507,38 @@ impl App {
             .map(|p| p.info.title.as_str())
             .unwrap_or("Untitled");
 
-        let timer_str = match self.state.game.start_time {
-            Some(start) => {
-                let elapsed = start.elapsed();
-                let mins = elapsed.as_secs() / 60;
-                let secs = elapsed.as_secs() % 60;
-                format!("{:02}:{:02}", mins, secs)
-            }
-            None => "00:00".to_string(),
+        // Timer: use frozen completion_time if completed, otherwise live elapsed time
+        let timer_duration = if is_completed {
+            self.state.game.completion_time
+        } else {
+            self.state.game.start_time.map(|start| start.elapsed())
         };
+        let timer_str = format_duration(timer_duration);
+
+        // Completion percentage
+        let (completion_str, completion_style) = if let Some(grid) = self.state.game.grid.as_ref() {
+            let pct = grid.completion_percentage();
+            let style = match self.state.game.completion_state {
+                CompletionState::IncorrectFill => Style::default()
+                    .fg(Color::Red)
+                    .add_modifier(Modifier::BOLD),
+                CompletionState::Correct => Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+                CompletionState::InProgress => Style::default().fg(Color::White),
+            };
+            (format!("{}%", pct), style)
+        } else {
+            ("0%".to_string(), Style::default().fg(Color::White))
+        };
+
+        // Right side: "XX% MM:SS"
+        let right_str = format!("{} {}", completion_str, timer_str);
+        let right_len = right_str.len();
 
         // Calculate spacing for centering the title
         let total_width = inner.width as usize;
         let date_len = date_str.len();
-        let timer_len = timer_str.len();
         let title_len = title_str.len();
 
         // Try to center the title
@@ -501,14 +560,16 @@ impl App {
 
         spans.push(Span::styled(title_str, title_style));
 
-        // Padding between title and timer
+        // Padding between title and right side (completion + timer)
         let pad_right = total_width
             .saturating_sub(right_start)
-            .saturating_sub(timer_len);
+            .saturating_sub(right_len);
         if pad_right > 0 {
             spans.push(Span::raw(" ".repeat(pad_right)));
         }
 
+        spans.push(Span::styled(completion_str, completion_style));
+        spans.push(Span::raw(" "));
         spans.push(Span::styled(timer_str, timer_style));
 
         let line = Line::from(spans);
@@ -529,70 +590,109 @@ impl App {
         frame.render_widget(par, inner);
     }
 
+    /// Draw the completion popup overlay.
+    fn draw_game_completed(&mut self, frame: &mut ratatui::Frame) {
+        // First draw the game in the background (as completed)
+        self.draw_game_playing(frame, true);
+
+        let area = frame.area();
+
+        // Popup dimensions
+        let popup_width: u16 = 40;
+        let popup_height: u16 = 9;
+
+        // Center the popup
+        let [centered_area] = Layout::horizontal([Constraint::Length(popup_width)])
+            .flex(Flex::Center)
+            .areas(area);
+
+        let [centered_area] = Layout::vertical([Constraint::Length(popup_height)])
+            .flex(Flex::Center)
+            .areas(centered_area);
+
+        // Clear the background area
+        frame.render_widget(
+            Block::default().style(Style::default().bg(Color::Black)),
+            centered_area,
+        );
+
+        // Draw popup border
+        let block = Block::default()
+            .title(" Congratulations! ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Green));
+        let inner_area = block.inner(centered_area);
+        frame.render_widget(block, centered_area);
+
+        // Build popup content
+        let time_str = format_duration(self.state.game.completion_time);
+        let selected = self.state.game.completed_popup_selection;
+
+        let selected_style = Style::default()
+            .fg(Color::Black)
+            .bg(Color::Yellow)
+            .add_modifier(Modifier::BOLD);
+        let normal_style = Style::default().fg(Color::White);
+
+        let options = ["Continue Playing", "Back to Menu"];
+        let option_lines = options.iter().enumerate().map(|(i, opt)| {
+            let (prefix, style) = if i == selected {
+                ("> ", selected_style)
+            } else {
+                ("  ", normal_style)
+            };
+            Line::from(Span::styled(format!("{}{}", prefix, opt), style))
+        });
+
+        let lines: Vec<Line> = [
+            Line::from(""),
+            Line::from(Span::styled(
+                format!("Puzzle completed in {}!", time_str),
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+        ]
+        .into_iter()
+        .chain(option_lines)
+        .collect();
+
+        frame.render_widget(Paragraph::new(lines).centered(), inner_area);
+    }
+
     /// Get the clue text for the currently selected cell based on active direction.
     fn get_current_clue(&self) -> String {
-        let Some(grid) = self.state.game.grid.as_ref() else {
-            return String::new();
-        };
+        self.get_current_clue_inner().unwrap_or_default()
+    }
 
-        let Some(puzzle) = self.state.game.puzzle.as_ref() else {
-            return String::new();
-        };
-
+    fn get_current_clue_inner(&self) -> Option<String> {
+        let grid = self.state.game.grid.as_ref()?;
+        let puzzle = self.state.game.puzzle.as_ref()?;
         let (row, col) = self.state.game.sel;
-        let Some(cell) = grid.get(row, col) else {
-            return String::new();
-        };
+        let cell = grid.get(row, col)?;
 
         let direction = self.state.game.active_direction;
 
-        // Get clue number for the active direction
-        let clue_no = cell.clue_no_for_direction(direction);
+        // Try active direction first, fall back to the other direction
+        let (clue_no, effective_dir) = cell
+            .clue_no_for_direction(direction)
+            .map(|n| (n, direction))
+            .or_else(|| {
+                let other = direction.toggle();
+                cell.clue_no_for_direction(other).map(|n| (n, other))
+            })?;
 
-        // If cell doesn't have a clue in the active direction, try the other direction
-        let (clue_no, dir_char) = match clue_no {
-            Some(n) => (
-                n,
-                if direction == Direction::Across {
-                    'A'
-                } else {
-                    'D'
-                },
+        let (dir_char, clue_text) = match effective_dir {
+            Direction::Across => (
+                'A',
+                puzzle.clues.across.get(&(clue_no as u16)).map(String::as_str).unwrap_or("?"),
             ),
-            None => {
-                // Fall back to the other direction
-                let other_dir = direction.toggle();
-                match cell.clue_no_for_direction(other_dir) {
-                    Some(n) => (
-                        n,
-                        if other_dir == Direction::Across {
-                            'A'
-                        } else {
-                            'D'
-                        },
-                    ),
-                    None => return String::new(),
-                }
-            }
+            Direction::Down => (
+                'D',
+                puzzle.clues.down.get(&(clue_no as u16)).map(String::as_str).unwrap_or("?"),
+            ),
         };
 
-        let clue_text = if dir_char == 'A' {
-            puzzle
-                .clues
-                .across
-                .get(&(clue_no as u16))
-                .map(|s| s.as_str())
-                .unwrap_or("?")
-        } else {
-            puzzle
-                .clues
-                .down
-                .get(&(clue_no as u16))
-                .map(|s| s.as_str())
-                .unwrap_or("?")
-        };
-
-        format!("{}{}: {}", clue_no, dir_char, clue_text)
+        Some(format!("{}{}: {}", clue_no, dir_char, clue_text))
     }
 
     pub fn handle_game_input(&mut self, view: GameView, key: KeyEvent) {
@@ -606,7 +706,74 @@ impl App {
                 }
             }
             GameView::Playing => self.handle_playing_input(key),
+            GameView::Completed => self.handle_completed_input(key),
+            GameView::CompletedPlaying => self.handle_completed_playing_input(key),
             GameView::Saving => {}
+        }
+    }
+
+    fn handle_completed_input(&mut self, key: KeyEvent) {
+        use crate::AppView;
+
+        match key.code {
+            KeyCode::Up => {
+                if self.state.game.completed_popup_selection > 0 {
+                    self.state.game.completed_popup_selection -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if self.state.game.completed_popup_selection < 1 {
+                    self.state.game.completed_popup_selection += 1;
+                }
+            }
+            KeyCode::Enter => {
+                match self.state.game.completed_popup_selection {
+                    0 => {
+                        // Continue Playing
+                        self.view = AppView::Game(GameView::CompletedPlaying);
+                    }
+                    1 => {
+                        // Back to Menu
+                        self.view = AppView::Menu;
+                    }
+                    _ => {}
+                }
+            }
+            KeyCode::Esc => {
+                // ESC also goes back to menu
+                self.view = AppView::Menu;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_completed_playing_input(&mut self, key: KeyEvent) {
+        use crate::AppView;
+
+        match key.code {
+            KeyCode::Esc => self.view = AppView::Menu,
+            KeyCode::Char(' ') => self.toggle_direction(),
+            KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right => {
+                self.handle_arrow_navigation(key);
+            }
+            _ => {}
+        }
+    }
+
+    /// Handle arrow key navigation with optional SHIFT modifier for word jumping.
+    fn handle_arrow_navigation(&mut self, key: KeyEvent) {
+        let (row_delta, col_delta) = match key.code {
+            KeyCode::Up => (-1, 0),
+            KeyCode::Down => (1, 0),
+            KeyCode::Left => (0, -1),
+            KeyCode::Right => (0, 1),
+            _ => return,
+        };
+
+        if key.modifiers.contains(KeyModifiers::SHIFT) {
+            self.jump_to_next_word(row_delta, col_delta);
+        } else {
+            self.move_selection(row_delta, col_delta);
         }
     }
 
@@ -662,14 +829,13 @@ impl App {
             }
 
             KeyCode::Char(c) => {
-                if self.state.game.selection.active_field == SelectionField::Date {
-                    // Only allow digits and dashes for date input
-                    if c.is_ascii_digit() || c == '-' {
-                        if self.state.game.selection.date.len() < 10 {
-                            self.state.game.selection.date.push(c);
-                            self.state.game.selection.error = None;
-                        }
-                    }
+                let is_date_field = self.state.game.selection.active_field == SelectionField::Date;
+                let is_valid_char = c.is_ascii_digit() || c == '-';
+                let has_room = self.state.game.selection.date.len() < 10;
+
+                if is_date_field && is_valid_char && has_room {
+                    self.state.game.selection.date.push(c);
+                    self.state.game.selection.error = None;
                 }
             }
 
@@ -709,6 +875,7 @@ impl App {
             if key.modifiers.contains(KeyModifiers::SHIFT) {
                 self.reveal_current_word();
                 self.advance_to_next_cell();
+                self.check_completion();
                 return;
             }
             // ALT+CTRL+R: reveal entire puzzle
@@ -716,18 +883,21 @@ impl App {
                 if let Some(grid) = self.state.game.grid.as_mut() {
                     grid.reveal_all();
                 }
+                self.check_completion();
                 return;
             }
             // CTRL+R: reveal current letter
             else {
                 self.reveal_current_letter();
                 self.advance_to_next_cell();
+                self.check_completion();
                 return;
             }
         } else if is_ctrl_r_char {
             // CTRL+R as control character: reveal current letter
             self.reveal_current_letter();
             self.advance_to_next_cell();
+            self.check_completion();
             return;
         }
 
@@ -743,35 +913,9 @@ impl App {
                 self.toggle_direction();
             }
 
-            // navigation: move selection with arrow keys
-            // SHIFT + Arrow: jump to next empty cell in a different clue word
-            KeyCode::Up => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    self.jump_to_next_word(-1, 0);
-                } else {
-                    self.move_selection(-1, 0);
-                }
-            }
-            KeyCode::Down => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    self.jump_to_next_word(1, 0);
-                } else {
-                    self.move_selection(1, 0);
-                }
-            }
-            KeyCode::Left => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    self.jump_to_next_word(0, -1);
-                } else {
-                    self.move_selection(0, -1);
-                }
-            }
-            KeyCode::Right => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    self.jump_to_next_word(0, 1);
-                } else {
-                    self.move_selection(0, 1);
-                }
+            // Navigation: arrow keys move selection, SHIFT+arrow jumps to next word
+            KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right => {
+                self.handle_arrow_navigation(key);
             }
 
             // letter input: A-Z (and lowercase a-z)
@@ -785,6 +929,8 @@ impl App {
                 }
                 // auto-advance to next cell in active direction
                 self.advance_to_next_cell();
+                // check completion after entering a letter
+                self.check_completion();
             }
 
             // backspace/delete: clear the current cell and retreat
@@ -797,9 +943,49 @@ impl App {
                 }
                 // move to previous cell in active direction
                 self.retreat_to_prev_cell();
+                // update completion state after clearing
+                self.update_completion_state();
             }
 
             _ => {}
+        }
+    }
+
+    /// Check completion state and transition to Completed view if puzzle is solved.
+    fn check_completion(&mut self) {
+        self.update_completion_state();
+
+        // If puzzle is fully correct, transition to Completed view
+        if self.state.game.completion_state == CompletionState::Correct {
+            use crate::AppView;
+
+            // Store the completion time
+            if let Some(start) = self.state.game.start_time {
+                self.state.game.completion_time = Some(start.elapsed());
+            }
+
+            // Reset popup selection
+            self.state.game.completed_popup_selection = 0;
+
+            // Transition to Completed view
+            self.view = AppView::Game(GameView::Completed);
+        }
+    }
+
+    /// Update completion state based on current grid fill.
+    fn update_completion_state(&mut self) {
+        let Some(grid) = self.state.game.grid.as_ref() else {
+            return;
+        };
+
+        let percentage = grid.completion_percentage();
+
+        if percentage < 100 {
+            self.state.game.completion_state = CompletionState::InProgress;
+        } else if grid.is_fully_correct() {
+            self.state.game.completion_state = CompletionState::Correct;
+        } else {
+            self.state.game.completion_state = CompletionState::IncorrectFill;
         }
     }
 
@@ -830,22 +1016,16 @@ impl App {
         let (row, col) = self.state.game.sel;
         let direction = self.state.game.active_direction;
 
-        // Get the clue number for the current cell in the active direction
-        let clue_no = if let Some(grid) = self.state.game.grid.as_ref() {
-            if let Some(cell) = grid.get(row, col) {
-                cell.clue_no_for_direction(direction)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let clue_no = self
+            .state
+            .game
+            .grid
+            .as_ref()
+            .and_then(|grid| grid.get(row, col))
+            .and_then(|cell| cell.clue_no_for_direction(direction));
 
-        // Reveal all cells in the word
-        if let Some(clue_no) = clue_no {
-            if let Some(grid) = self.state.game.grid.as_mut() {
-                grid.reveal_word(clue_no, direction);
-            }
+        if let (Some(clue_no), Some(grid)) = (clue_no, self.state.game.grid.as_mut()) {
+            grid.reveal_word(clue_no, direction);
         }
     }
 
