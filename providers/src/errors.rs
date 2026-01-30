@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum ProviderError {
     FetchError(reqwest::Error),
     SerdeParseError(serde_json::Error),

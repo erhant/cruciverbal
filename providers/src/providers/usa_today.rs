@@ -1,3 +1,4 @@
+use crate::util::{http_client, url_decode};
 use crate::ProviderError;
 use puz_parse::Puzzle;
 use quick_xml::de::from_str;
@@ -28,12 +29,8 @@ pub async fn download(date: &str) -> Result<Puzzle, ProviderError> {
         date_formatted
     );
 
-    let client = reqwest::Client::new();
-    let res = client
-        .get(&url)
-        .header("User-Agent", "cruciverbal/0.1")
-        .send()
-        .await?;
+    let client = http_client();
+    let res = client.get(&url).send().await?;
 
     if !res.status().is_success() {
         return Err(ProviderError::Other(format!(
@@ -198,30 +195,6 @@ fn parse(xml_content: &str) -> Result<Puzzle, ProviderError> {
             given: None,
         },
     })
-}
-
-/// Simple URL decode for common entities
-fn url_decode(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '%' {
-            let hex: String = chars.by_ref().take(2).collect();
-            if let Ok(byte) = u8::from_str_radix(&hex, 16) {
-                result.push(byte as char);
-            } else {
-                result.push('%');
-                result.push_str(&hex);
-            }
-        } else if c == '+' {
-            result.push(' ');
-        } else {
-            result.push(c);
-        }
-    }
-
-    result
 }
 
 #[cfg(test)]

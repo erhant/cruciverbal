@@ -1,4 +1,5 @@
 use crate::ProviderError;
+use crate::util::http_client;
 use puz_parse::Puzzle;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -48,12 +49,8 @@ pub async fn download_latest(variant: GuardianVariant) -> Result<Puzzle, Provide
         variant.series_path()
     );
 
-    let client = reqwest::Client::new();
-    let res = client
-        .get(&landing_url)
-        .header("User-Agent", "cruciverbal/0.1")
-        .send()
-        .await?;
+    let client = http_client();
+    let res = client.get(&landing_url).send().await?;
 
     if !res.status().is_success() {
         return Err(ProviderError::Other(format!(
@@ -72,12 +69,8 @@ pub async fn download_latest(variant: GuardianVariant) -> Result<Puzzle, Provide
 
 /// Download a Guardian crossword from a specific URL.
 pub async fn download_from_url(url: &str) -> Result<Puzzle, ProviderError> {
-    let client = reqwest::Client::new();
-    let res = client
-        .get(url)
-        .header("User-Agent", "cruciverbal/0.1")
-        .send()
-        .await?;
+    let client = http_client();
+    let res = client.get(url).send().await?;
 
     if !res.status().is_success() {
         return Err(ProviderError::Other(format!(
@@ -197,6 +190,7 @@ struct GuardianData {
     creator: Option<GuardianCreator>,
     dimensions: GuardianDimensions,
     entries: Vec<GuardianEntry>,
+    #[allow(unused)]
     date: i64,
 }
 

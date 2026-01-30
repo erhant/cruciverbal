@@ -1,3 +1,4 @@
+use crate::util::http_client;
 use crate::ProviderError;
 use puz_parse::Puzzle;
 use std::collections::HashMap;
@@ -14,7 +15,8 @@ pub async fn download(date: &str) -> Result<puz_parse::Puzzle, ProviderError> {
     // example:
     // https://data.puzzlexperts.com/puzzleapp-v3/data.php?date=2025-15-12&psid=100000160
 
-    let res = reqwest::get(&url).await?;
+    let client = http_client();
+    let res = client.get(&url).send().await?;
     if !res.status().is_success() {
         todo!("handle error")
     }

@@ -1,4 +1,5 @@
 use crate::ProviderError;
+use crate::util::http_client;
 use puz_parse::Puzzle;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -16,12 +17,8 @@ pub async fn download(date: &str) -> Result<Puzzle, ProviderError> {
         date
     );
 
-    let client = reqwest::Client::new();
-    let res = client
-        .get(&url)
-        .header("User-Agent", "cruciverbal/0.1")
-        .send()
-        .await?;
+    let client = http_client();
+    let res = client.get(&url).send().await?;
 
     if !res.status().is_success() {
         return Err(ProviderError::Other(format!(
@@ -72,6 +69,7 @@ struct WaPoData {
 #[derive(Debug, Deserialize)]
 struct WaPoCell {
     answer: Option<String>,
+    #[allow(unused)]
     circle: Option<bool>,
 }
 
@@ -127,7 +125,9 @@ fn parse(data: WaPoData) -> Result<Puzzle, ProviderError> {
     words_sorted.sort_by(|a, b| {
         let a_idx = a.indexes.first().copied().unwrap_or(0);
         let b_idx = b.indexes.first().copied().unwrap_or(0);
-        a_idx.cmp(&b_idx).then_with(|| a.direction.cmp(&b.direction))
+        a_idx
+            .cmp(&b_idx)
+            .then_with(|| a.direction.cmp(&b.direction))
     });
 
     // Calculate clue numbers based on grid positions
