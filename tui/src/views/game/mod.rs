@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
 use std::time::{Duration, Instant};
 
@@ -518,11 +518,8 @@ impl App {
 
     /// Draw the top bar: date (left), title (center), completion% + timer (right).
     fn draw_top_bar(&self, frame: &mut ratatui::Frame, area: Rect, is_completed: bool) {
-        let block = Block::default()
-            .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::DarkGray));
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
+        // Use the full area without borders
+        let inner = area;
 
         let date_str = self.state.game.puzzle_date.as_deref().unwrap_or("No date");
 
@@ -605,16 +602,9 @@ impl App {
 
     /// Draw the clue bar based on currently selected cell.
     fn draw_clue_bar(&self, frame: &mut ratatui::Frame, area: Rect) {
-        let block = Block::default()
-            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::DarkGray));
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let clue_text = self.get_current_clue();
-        let clue_style = Style::default().fg(Color::White);
-        let par = Paragraph::new(Span::styled(clue_text, clue_style));
-        frame.render_widget(par, inner);
+        let clue_line = self.get_current_clue();
+        let par = Paragraph::new(clue_line).wrap(Wrap { trim: true });
+        frame.render_widget(par, area);
     }
 
     /// Draw the completion popup overlay.
@@ -638,10 +628,7 @@ impl App {
             .areas(centered_area);
 
         // Clear the background area
-        frame.render_widget(
-            Block::default().style(Style::default().bg(Color::Black)),
-            centered_area,
-        );
+        frame.render_widget(Clear, centered_area);
 
         // Draw popup border
         let block = Block::default()
@@ -686,12 +673,12 @@ impl App {
         frame.render_widget(Paragraph::new(lines).centered(), inner_area);
     }
 
-    /// Get the clue text for the currently selected cell based on active direction.
-    fn get_current_clue(&self) -> String {
-        self.get_current_clue_inner().unwrap_or_default()
+    /// Get the clue line for the currently selected cell based on active direction.
+    fn get_current_clue(&self) -> Line<'static> {
+        self.get_current_clue_inner().unwrap_or_else(|| Line::from(""))
     }
 
-    fn get_current_clue_inner(&self) -> Option<String> {
+    fn get_current_clue_inner(&self) -> Option<Line<'static>> {
         let grid = self.state.game.grid.as_ref()?;
         let puzzle = self.state.game.puzzle.as_ref()?;
         let (row, col) = self.state.game.sel;
@@ -719,7 +706,12 @@ impl App {
             ),
         };
 
-        Some(format!("{}{}: {}", clue_no, dir_char, clue_text))
+        Some(Line::from(vec![
+            Span::styled(clue_no.to_string(), Style::default().fg(Color::Yellow)),
+            Span::styled(dir_char.to_string(), Style::default().fg(Color::Cyan)),
+            Span::styled(": ", Style::default().fg(Color::DarkGray)),
+            Span::styled(clue_text.to_string(), Style::default().fg(Color::White)),
+        ]))
     }
 
     pub fn handle_game_input(&mut self, view: GameView, key: KeyEvent) {

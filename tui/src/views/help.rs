@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Constraint, Flex, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
 };
 
 /// Help content sections with their keyboard shortcuts.
@@ -50,52 +50,44 @@ impl App {
         content_height += 1; // footer
 
         // Calculate content width (widest line)
-        let content_width: u16 = 50;
+        let content_width: u16 = 40;
 
         // Center the content
-        let [centered_area] = Layout::horizontal([Constraint::Length(content_width + 4)])
+        let [centered_area] = Layout::horizontal([Constraint::Length(content_width)])
             .flex(Flex::Center)
             .areas(area);
 
-        let [centered_area] = Layout::vertical([Constraint::Length(content_height + 4)])
+        let [centered_area] = Layout::vertical([Constraint::Length(content_height)])
             .flex(Flex::Center)
             .areas(centered_area);
-
-        // Draw border
-        let block = Block::default()
-            .title(" Help ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan));
-        let inner_area = block.inner(centered_area);
-        frame.render_widget(block, centered_area);
 
         // Build help content
         let mut lines: Vec<Line> = Vec::new();
 
         // Title
         lines.push(Line::from(Span::styled(
-            "Keyboard Controls",
+            "━━━ Keyboard Controls ━━━",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
 
         // Sections
         for (section_name, items) in HELP_SECTIONS {
-            // Section header
+            // Section header - more subtle
             lines.push(Line::from(Span::styled(
-                format!("[{}]", section_name),
+                section_name.to_string(),
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             )));
 
             // Items
             for (key, description) in *items {
                 lines.push(Line::from(vec![
-                    Span::styled(format!("<{}>", key), Style::default().fg(Color::Yellow)),
-                    Span::styled(format!(" {}", description), Style::default().fg(Color::White)),
+                    Span::styled(format!("  {}", key), Style::default().fg(Color::Cyan)),
+                    Span::styled(format!("  {}", description), Style::default().fg(Color::DarkGray)),
                 ]));
             }
 
@@ -104,11 +96,11 @@ impl App {
 
         // Footer
         lines.push(Line::from(Span::styled(
-            "Press ESC to return",
+            "ESC to return",
             Style::default().fg(Color::DarkGray),
         )));
 
-        frame.render_widget(Paragraph::new(lines).centered(), inner_area);
+        frame.render_widget(Paragraph::new(lines).centered(), centered_area);
     }
 
     pub fn handle_help_input(&mut self, key: KeyEvent) {

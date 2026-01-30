@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Constraint, Flex, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
 };
 
 #[derive(Default, Debug)]
@@ -38,36 +38,30 @@ impl App {
         let area = frame.area();
 
         // Content dimensions
-        let content_width: u16 = 24;
-        // Title (1) + blank (1) + menu items (3) + blank (1) + footer (1)
-        let content_height: u16 = 1 + 1 + MenuItem::ALL.len() as u16 + 1 + 1;
+        let content_width: u16 = 30;
+        // Title (1) + blank (2) + menu items (3) + blank (2) + footer (1)
+        let content_height: u16 = 1 + 2 + MenuItem::ALL.len() as u16 + 2 + 1;
 
         // Center the content
-        let [centered_area] = Layout::horizontal([Constraint::Length(content_width + 4)])
+        let [centered_area] = Layout::horizontal([Constraint::Length(content_width)])
             .flex(Flex::Center)
             .areas(area);
 
-        let [centered_area] = Layout::vertical([Constraint::Length(content_height + 4)])
+        let [centered_area] = Layout::vertical([Constraint::Length(content_height)])
             .flex(Flex::Center)
             .areas(centered_area);
-
-        // Draw border
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan));
-        let inner_area = block.inner(centered_area);
-        frame.render_widget(block, centered_area);
 
         // Build menu content
         let mut lines: Vec<Line> = Vec::new();
 
-        // Title
+        // Title - larger feel with decoration
         lines.push(Line::from(Span::styled(
-            "Cruciverbal",
+            "━━━ Cruciverbal ━━━",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )));
+        lines.push(Line::from(""));
         lines.push(Line::from(""));
 
         // Menu items
@@ -77,10 +71,10 @@ impl App {
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::White)
+                Style::default().fg(Color::DarkGray)
             };
 
-            let prefix = if i == self.state.menu.sel { "> " } else { "  " };
+            let prefix = if i == self.state.menu.sel { "▸ " } else { "  " };
             lines.push(Line::from(Span::styled(
                 format!("{}{}", prefix, item.fmt()),
                 style,
@@ -88,18 +82,15 @@ impl App {
         }
 
         lines.push(Line::from(""));
+        lines.push(Line::from(""));
 
-        // Footer
-        lines.push(Line::from(vec![
-            Span::styled("<", Style::default().fg(Color::Yellow)),
-            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
-            Span::styled("> navigate  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("<", Style::default().fg(Color::Yellow)),
-            Span::styled("ESC", Style::default().fg(Color::Yellow)),
-            Span::styled("> quit", Style::default().fg(Color::DarkGray)),
-        ]));
+        // Footer - more subtle
+        lines.push(Line::from(Span::styled(
+            "↑↓ navigate · ESC quit",
+            Style::default().fg(Color::DarkGray),
+        )));
 
-        frame.render_widget(Paragraph::new(lines).centered(), inner_area);
+        frame.render_widget(Paragraph::new(lines).centered(), centered_area);
     }
 
     pub fn handle_menu_input(&mut self, key: KeyEvent) {

@@ -242,8 +242,14 @@ impl PuzzleCell {
 
         // Determine the clue number to display (only at word start, index 0)
         let clue_number = match (clue_no, word_idx) {
-            (ClueNoDirection::Across(n), WordIdxDirection::Across(0) | WordIdxDirection::Cross(0, _)) => Some(*n),
-            (ClueNoDirection::Down(n), WordIdxDirection::Down(0) | WordIdxDirection::Cross(_, 0)) => Some(*n),
+            (
+                ClueNoDirection::Across(n),
+                WordIdxDirection::Across(0) | WordIdxDirection::Cross(0, _),
+            ) => Some(*n),
+            (
+                ClueNoDirection::Down(n),
+                WordIdxDirection::Down(0) | WordIdxDirection::Cross(_, 0),
+            ) => Some(*n),
             (ClueNoDirection::Cross(a, d), WordIdxDirection::Cross(0, 0)) => {
                 debug_assert_eq!(a, d, "Cross cell at (0,0) should have same clue number");
                 Some(*a)
@@ -258,9 +264,9 @@ impl PuzzleCell {
         };
 
         let no_style = if self.is_selected_cell {
-            Style::default().fg(Color::Yellow)
+            Style::default().fg(Color::Yellow).bold()
         } else if self.is_selected_word {
-            Style::default().fg(Color::Cyan)
+            Style::default().fg(Color::Cyan).bold()
         } else {
             border_style
         };

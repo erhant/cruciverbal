@@ -2,19 +2,20 @@
 
 ## Project Overview
 
-Cruciverbal is a terminal-based crossword puzzle player written in Rust. The application provides a TUI (Terminal User Interface) for solving crossword puzzles from various providers. Currently, it supports downloading and displaying puzzles from Lovatt's Cryptic crossword service.
+Cruciverbal is a terminal-based crossword puzzle player written in Rust. The application provides a TUI (Terminal User Interface) for solving crossword puzzles from various providers. It supports 15 different puzzle providers including Guardian, Washington Post, USA Today, and more.
 
 **Key Features:**
 
 - Terminal-based crossword puzzle interface
-- Async puzzle downloading from external providers
+- Async puzzle downloading from 15+ external providers
 - Grid rendering with scrollable viewport
-- PUZ format puzzle parsing and display
+- Multiple puzzle format support (PUZ, CrosswordCompiler XML, JSON APIs)
 - Interactive puzzle solving with keyboard navigation
 - Auto-scrolling to keep selected cell visible
 - Direction toggling (Across/Down) with word highlighting
 - 3-area game layout: top bar (date, title, completion%, timer), grid, bottom bar (clue)
 - Puzzle selection screen with date picker and provider selector
+- "Latest puzzle" mode for providers that support it
 - Completion tracking with percentage display and win detection
 - Congratulations popup on puzzle completion with time display
 
@@ -69,10 +70,11 @@ The main application binary that provides the interactive crossword solving expe
   - `visible_area`, `scroll_cur`, `scroll_max`, `scroll_bar` - Viewport/scrolling state
 - `SelectionState` - State for puzzle selection:
   - `date: String` - Date input (YYYY-MM-DD)
-  - `provider_idx: usize` - Selected provider index
+  - `use_latest: bool` - Whether to use "latest" mode instead of specific date
+  - `provider_idx: usize` - Selected provider index (0-14)
   - `active_field: SelectionField` - Which field is active (Date/Provider/Start)
   - `error: Option<String>` - Error message to display
-- `Provider` enum - Available puzzle providers (currently: LovattsCryptic)
+- `PuzzleProvider` enum - 15 available providers (from cruciverbal_providers crate)
 - `Direction` enum - Across or Down direction
 - `MenuState` - Menu selection tracking
 - `PuzzleGrid` - Grid with cells, selection management, and rendering:
@@ -104,15 +106,30 @@ Library crate for fetching puzzles from external sources.
 
 **Structure:**
 
-- `lib.rs` - Module exports
+- `lib.rs` - Module exports, `PuzzleProvider` enum with all 15 providers
 - `errors.rs` - Provider error types
+- `util.rs` - Shared utilities (HTTP client, URL decoding, user-agent string)
+- `formats/` - Puzzle format parsers
+  - `crossword_compiler.rs` - CrosswordCompiler XML format parser
 - `providers/` - Individual provider implementations
   - `lovatts_cryptic.rs` - Lovatt's Cryptic crossword provider
+  - `guardian.rs` - Guardian crosswords (7 variants: Cryptic, Everyman, Speedy, Quick, Prize, Weekend, Quiptic)
+  - `wapo.rs` - Washington Post Sunday crossword
+  - `usa_today.rs` - USA Today crossword
+  - `simply_daily.rs` - Simply Daily Puzzles (3 variants: Regular, Cryptic, Quick)
+  - `universal.rs` - Universal crossword (via AMUniversal API)
+  - `daily_pop.rs` - Daily Pop crossword (via PuzzleNation API)
 
 **Key Components:**
 
+- `PuzzleProvider` enum - All 15 available providers with `ALL` constant array
 - `ProviderError` - Unified error type for fetch/parse failures
-- Provider modules implement `download()` functions returning `Result<Puzzle, ProviderError>`
+- `GuardianVariant` enum - 7 Guardian crossword types
+- `SimplyDailyVariant` enum - 3 Simply Daily puzzle types
+- Provider modules implement `download(date)` and often `download_latest()` functions
+- `util::http_client()` - Configured reqwest client with user-agent
+- `util::url_decode()` - URL percent-encoding decoder
+- `formats::crossword_compiler::parse()` - XML parser for CrosswordCompiler format
 
 ## Key Components
 
@@ -148,19 +165,45 @@ The game view is split into 3 areas:
 ### Puzzle Selection Screen
 
 Centered form with:
-- Date input field (YYYY-MM-DD, defaults to today)
-- Provider selector (currently only Lovatts Cryptic)
+- Date input field (YYYY-MM-DD, defaults to today) with "latest" mode toggle
+- Provider selector (15 providers available, use ←→ to cycle)
 - Start button
 - Error message display for validation/download failures
 
-### Puzzle Provider (providers/src/providers/lovatts_cryptic.rs)
+### Puzzle Providers
 
-- Fetches puzzle data from Puzzleexperts API
-- Parses custom `data` field format (ampersand-separated key-value pairs)
-- Constructs PUZ-format puzzle with:
-  - Grid construction from clue words and positions
-  - Automatic clue numbering based on grid positions
-  - Separation of across/down clues
+The application supports 15 puzzle providers organized into families:
+
+**Lovatts (providers/src/providers/lovatts_cryptic.rs)**
+- Fetches from Puzzleexperts API with custom data format
+- Date-based download only
+
+**Guardian (providers/src/providers/guardian.rs)**
+- 7 variants: Cryptic, Everyman, Speedy, Quick, Prize, Weekend, Quiptic
+- Scrapes HTML to extract JSON from `<gu-island>` component
+- Latest puzzle download only (no date selection)
+
+**Washington Post (providers/src/providers/wapo.rs)**
+- Sunday crosswords via REST API
+- Date-based (YYYY/MM/DD format) and latest (most recent Sunday) download
+
+**USA Today (providers/src/providers/usa_today.rs)**
+- XML format via uclick.com API
+- Date-based and latest download with retry fallback
+
+**Simply Daily (providers/src/providers/simply_daily.rs)**
+- 3 variants: Regular, Cryptic, Quick
+- Uses CrosswordCompiler XML format (JS-embedded)
+- Date-based and latest download
+
+**Universal (providers/src/providers/universal.rs)**
+- Via AMUniversal JSON API
+- Date-based and latest download with retry logic
+
+**Daily Pop (providers/src/providers/daily_pop.rs)**
+- Via PuzzleNation API with dynamic API key fetching
+- Uses CrosswordCompiler XML format
+- Date-based and latest download
 
 ### Input Handling
 
@@ -190,10 +233,12 @@ Centered form with:
 ### Current State
 
 - **Fully playable** crossword puzzle experience
+- **15 puzzle providers** implemented with date and/or "latest" modes
 - Menu system with New Game and Help options
 - Help screen with keyboard controls reference
-- Puzzle selection screen with date picker and provider selector
-- Async puzzle download with error handling
+- Puzzle selection screen with date picker, "latest" toggle, and provider selector
+- Async puzzle download with error handling and retry logic
+- Multiple puzzle format support (custom JSON, XML, CrosswordCompiler)
 - Grid rendering with proper border handling
 - Cell and word selection with direction toggling
 - Yellow highlighting for cursor, cyan for word
@@ -208,12 +253,12 @@ Centered form with:
 
 ### Known Limitations
 
-- Only one provider implemented (Lovatt's Cryptic)
 - No rebus square support (noted in tui/src/lib.rs:12)
-- No answer validation/checking yet
 - No save/load game progress
 - Error handling incomplete in some areas (todo!() macros present)
 - GameView::Saving not implemented
+- Guardian providers only support "latest" mode (no date selection)
+- Some providers have limited puzzle archive availability (WaPo only keeps recent puzzles)
 
 ### Planned Features (from code TODOs)
 
@@ -240,6 +285,12 @@ From tui/src/lib.rs:
 - `reqwest` with json feature for HTTP requests
 - `chrono` for date handling
 
+**Providers-specific:**
+
+- `quick-xml` v0.37 with serialize feature for XML parsing (CrosswordCompiler format)
+- `reqwest` v0.11 for HTTP requests
+- `chrono` v0.4 for date handling
+
 **TUI-specific:**
 
 - `ratatui` v0.29 with unstable-rendered-line-info feature
@@ -259,7 +310,15 @@ From tui/src/lib.rs:
 
 ### Current Tests
 
-- `providers/src/providers/lovatts_cryptic.rs:227` - Download test (async)
+- `providers/src/providers/lovatts_cryptic.rs` - Download test (async)
+- `providers/src/providers/guardian.rs` - Download tests for Cryptic and Quick variants
+- `providers/src/providers/wapo.rs` - Download tests (date-based and latest)
+- `providers/src/providers/usa_today.rs` - Download tests (date-based and latest)
+- `providers/src/providers/simply_daily.rs` - Download tests for all 3 variants
+- `providers/src/providers/universal.rs` - Download tests (date-based and latest)
+- `providers/src/providers/daily_pop.rs` - Download tests (date-based and latest)
+- `providers/src/formats/crossword_compiler.rs` - XML extraction tests
+- `providers/src/util.rs` - URL decode tests
 - `tui/src/views/game/grid.rs` - Grid tests:
   - `test_from_solution` - Verifies clue numbering and word index assignment
   - `test_puzzle_cell_to_par` - Grid rendering test with buffer inspection

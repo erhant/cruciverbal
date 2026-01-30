@@ -355,9 +355,18 @@ impl PuzzleGrid {
                 }
 
                 // Content lines (3 lines with left border)
-                span_groups[1].extend([v_span(), empty(), empty(), empty()]);
-                span_groups[2].extend([v_span(), empty(), val_span, empty()]);
-                span_groups[3].extend([v_span(), empty(), selection_span, empty()]);
+                if cell.is_filled() {
+                    // Filled cells: solid block across all 3 interior positions
+                    let filled = || Span::styled(BOX_FILLED.to_string(), Style::default().fg(Color::White));
+                    span_groups[1].extend([v_span(), filled(), filled(), filled()]);
+                    span_groups[2].extend([v_span(), filled(), filled(), filled()]);
+                    span_groups[3].extend([v_span(), filled(), filled(), filled()]);
+                } else {
+                    // Letter cells: normal layout with value in center
+                    span_groups[1].extend([v_span(), empty(), empty(), empty()]);
+                    span_groups[2].extend([v_span(), empty(), val_span, empty()]);
+                    span_groups[3].extend([v_span(), empty(), selection_span, empty()]);
+                }
 
                 // Right border for last column
                 if is_last_col {

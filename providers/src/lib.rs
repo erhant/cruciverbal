@@ -38,7 +38,9 @@ pub enum PuzzleProvider {
 
 impl PuzzleProvider {
     pub const ALL: [PuzzleProvider; 15] = [
-        PuzzleProvider::LovattsCryptic,
+        PuzzleProvider::SimplyDaily,
+        PuzzleProvider::SimplyDailyCryptic,
+        PuzzleProvider::SimplyDailyQuick,
         PuzzleProvider::GuardianCryptic,
         PuzzleProvider::GuardianEveryman,
         PuzzleProvider::GuardianSpeedy,
@@ -48,11 +50,9 @@ impl PuzzleProvider {
         PuzzleProvider::GuardianQuiptic,
         PuzzleProvider::WashingtonPost,
         PuzzleProvider::UsaToday,
-        PuzzleProvider::SimplyDaily,
-        PuzzleProvider::SimplyDailyCryptic,
-        PuzzleProvider::SimplyDailyQuick,
         PuzzleProvider::Universal,
         PuzzleProvider::DailyPop,
+        PuzzleProvider::LovattsCryptic,
     ];
 
     pub fn name(&self) -> &'static str {
