@@ -1,5 +1,5 @@
 [package]
-name = "cruciverbal-tui"
+name = "cruciverbal"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

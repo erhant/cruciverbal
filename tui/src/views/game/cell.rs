@@ -226,18 +226,18 @@ impl PuzzleCell {
         }
     }
 
-    /// Returns spans for the clue number area (two characters).
+    /// Returns spans for the clue number area (three characters).
     ///
     /// A clue number is displayed only at the start of a word (word index 0).
-    /// Single-digit numbers use one span, two-digit numbers use both.
-    pub fn to_no_spans(&self, border_style: Style) -> (Span, Span) {
+    /// Supports 1-3 digit numbers, filling unused positions with horizontal border.
+    pub fn to_no_spans(&self, border_style: Style) -> (Span, Span, Span) {
         let h_span = || Span::styled(BOX_H.to_string(), border_style);
 
         let PuzzleCellValue::Letter {
             clue_no, word_idx, ..
         } = &self.val
         else {
-            return (h_span(), h_span());
+            return (h_span(), h_span(), h_span());
         };
 
         // Determine the clue number to display (only at word start, index 0)
@@ -260,7 +260,7 @@ impl PuzzleCell {
         };
 
         let Some(n) = clue_number else {
-            return (h_span(), h_span());
+            return (h_span(), h_span(), h_span());
         };
 
         let no_style = if self.is_selected_cell {
@@ -272,10 +272,20 @@ impl PuzzleCell {
         };
 
         if n < 10 {
-            (Span::styled(n.to_string(), no_style), h_span())
-        } else {
+            // 1 digit: _N_
+            (Span::styled(n.to_string(), no_style), h_span(), h_span())
+        } else if n < 100 {
+            // 2 digits: NN_
             (
                 Span::styled((n / 10).to_string(), no_style),
+                Span::styled((n % 10).to_string(), no_style),
+                h_span(),
+            )
+        } else {
+            // 3 digits: NNN
+            (
+                Span::styled((n / 100).to_string(), no_style),
+                Span::styled(((n / 10) % 10).to_string(), no_style),
                 Span::styled((n % 10).to_string(), no_style),
             )
         }

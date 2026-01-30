@@ -243,21 +243,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cruciverbal-providers"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "puz-parse",
- "quick-xml",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "cruciverbal-tui"
+name = "cruciverbal"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -268,6 +254,20 @@ dependencies = [
  "puz-parse",
  "ratatui",
  "serde",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "cruciverbal-providers"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "puz-parse",
+ "quick-xml",
+ "reqwest",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
 ]

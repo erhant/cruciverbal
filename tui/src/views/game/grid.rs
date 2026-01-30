@@ -337,7 +337,7 @@ impl PuzzleGrid {
 
                 let val_span = cell.to_val_span();
                 let selection_span = cell.to_selection_span();
-                let (no_span_1, no_span_2) = cell.to_no_spans(border_style);
+                let (no_span_1, no_span_2, no_span_3) = cell.to_no_spans(border_style);
 
                 // Top-left corner: depends on position in grid
                 let tl_corner = match (is_first_row, is_first_col) {
@@ -346,7 +346,7 @@ impl PuzzleGrid {
                     (false, true) => BOX_L,
                     (false, false) => BOX_X,
                 };
-                span_groups[0].extend([corner(tl_corner), no_span_1, no_span_2, h_span()]);
+                span_groups[0].extend([corner(tl_corner), no_span_1, no_span_2, no_span_3]);
 
                 // Top-right corner for last column
                 if is_last_col {

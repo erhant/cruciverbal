@@ -1,4 +1,4 @@
-use cruciverbal_tui::App;
+use cruciverbal::App;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
