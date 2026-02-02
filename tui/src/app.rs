@@ -26,6 +26,8 @@ const FPS_RATE: Duration = Duration::from_millis(1000 / 35);
 pub struct App {
     /// Active application view.
     pub view: AppView,
+    /// Previous view to return to (e.g., when closing help).
+    pub previous_view: Option<AppView>,
     /// Application state.
     ///
     /// This is shared among all views.
@@ -43,6 +45,7 @@ impl App {
             is_running: false,
             event_stream: EventStream::new(),
             view: AppView::Menu,
+            previous_view: None,
             state: AppState::default(),
         }
     }
@@ -195,10 +198,12 @@ impl App {
             Ok(puzzle) => {
                 self.state.game.puzzle = Some(puzzle);
                 self.state.game.puzzle_date = if use_latest {
-                    Some("Latest".to_string())
+                    // Use today's date for "latest" puzzles
+                    Some(chrono::Local::now().format("%Y-%m-%d").to_string())
                 } else {
                     Some(date)
                 };
+                self.state.game.provider_idx = Some(self.state.game.selection.provider_idx);
                 self.state.game.grid = None; // Will be built on first draw
                 self.state.game.start_time = None; // Will be set on first draw
                 self.view = AppView::Game(GameView::Playing);

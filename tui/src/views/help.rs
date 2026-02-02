@@ -7,6 +7,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
+use std::time::Instant;
 
 /// Help content sections with their keyboard shortcuts.
 const HELP_SECTIONS: &[(&str, &[(&str, &str)])] = &[
@@ -32,7 +33,12 @@ const HELP_SECTIONS: &[(&str, &[(&str, &str)])] = &[
     ),
     (
         "General",
-        &[("ESC", "Back to menu"), ("Ctrl+C", "Quit application")],
+        &[
+            ("Ctrl+S", "Save game"),
+            ("Ctrl+H", "Show help"),
+            ("ESC", "Back to menu"),
+            ("Ctrl+C", "Quit application"),
+        ],
     ),
 ];
 
@@ -87,7 +93,10 @@ impl App {
             for (key, description) in *items {
                 lines.push(Line::from(vec![
                     Span::styled(format!("  {}", key), Style::default().fg(Color::Cyan)),
-                    Span::styled(format!("  {}", description), Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        format!("  {}", description),
+                        Style::default().fg(Color::DarkGray),
+                    ),
                 ]));
             }
 
@@ -95,18 +104,29 @@ impl App {
         }
 
         // Footer
-        lines.push(Line::from(Span::styled(
-            "ESC to return",
-            Style::default().fg(Color::DarkGray),
-        )));
+        lines.push(Line::from(vec![
+            Span::styled("ESC", Style::default().fg(Color::Yellow)),
+            Span::styled(" to return", Style::default().fg(Color::DarkGray)),
+        ]));
 
         frame.render_widget(Paragraph::new(lines).centered(), centered_area);
     }
 
     pub fn handle_help_input(&mut self, key: KeyEvent) {
-        // Any key returns to menu, but ESC is the primary one
+        // Any key returns, but ESC is the primary one
         if matches!(key.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Backspace) {
-            self.view = AppView::Menu;
+            // Return to previous view if set, otherwise go to menu
+            if let Some(prev) = self.previous_view.take() {
+                // If returning to game, resume timer
+                if matches!(prev, AppView::Game(_)) {
+                    if let Some(elapsed) = self.state.game.paused_elapsed.take() {
+                        self.state.game.start_time = Some(Instant::now() - elapsed);
+                    }
+                }
+                self.view = prev;
+            } else {
+                self.view = AppView::Menu;
+            }
         }
     }
 }

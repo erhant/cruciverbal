@@ -1,5 +1,5 @@
-use crate::util::http_client;
 use crate::ProviderError;
+use crate::util::http_client;
 use puz_parse::Puzzle;
 use std::collections::HashMap;
 
@@ -18,7 +18,11 @@ pub async fn download(date: &str) -> Result<puz_parse::Puzzle, ProviderError> {
     let client = http_client();
     let res = client.get(&url).send().await?;
     if !res.status().is_success() {
-        todo!("handle error")
+        return Err(ProviderError::Other(format!(
+            "Failed to fetch {} HTTP {}",
+            url,
+            res.text().await?
+        )));
     }
 
     let body: serde_json::Value = res.json().await?;

@@ -18,15 +18,22 @@ pub struct MenuState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MenuItem {
     NewGame,
+    LoadGame,
     Help,
     Exit,
 }
 
 impl MenuItem {
-    pub const ALL: [MenuItem; 3] = [MenuItem::NewGame, MenuItem::Help, MenuItem::Exit];
+    pub const ALL: [MenuItem; 4] = [
+        MenuItem::NewGame,
+        MenuItem::LoadGame,
+        MenuItem::Help,
+        MenuItem::Exit,
+    ];
     pub fn fmt(&self) -> String {
         match self {
             MenuItem::NewGame => "New Game".to_string(),
+            MenuItem::LoadGame => "Load Game".to_string(),
             MenuItem::Help => "Help".to_string(),
             MenuItem::Exit => "Exit".to_string(),
         }
@@ -85,10 +92,12 @@ impl App {
         lines.push(Line::from(""));
 
         // Footer - more subtle
-        lines.push(Line::from(Span::styled(
-            "↑↓ navigate · ESC quit",
-            Style::default().fg(Color::DarkGray),
-        )));
+        lines.push(Line::from(vec![
+            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
+            Span::styled(" navigate · ", Style::default().fg(Color::DarkGray)),
+            Span::styled("ESC", Style::default().fg(Color::Yellow)),
+            Span::styled(" quit", Style::default().fg(Color::DarkGray)),
+        ]));
 
         frame.render_widget(Paragraph::new(lines).centered(), centered_area);
     }
@@ -125,6 +134,13 @@ impl App {
                 // Reset game state for a new game
                 self.state.game.reset_for_new_game();
                 self.view = AppView::Game(GameView::Selecting);
+            }
+            MenuItem::LoadGame => {
+                use crate::views::game::GameView;
+
+                // Reset game state and go to load selection
+                self.state.game.reset_for_new_game();
+                self.view = AppView::Game(GameView::LoadSelect);
             }
             MenuItem::Help => {
                 self.view = AppView::Help;
