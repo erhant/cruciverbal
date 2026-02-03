@@ -517,8 +517,7 @@ impl App {
         // render start button
         let start_style = if selection.active_field == SelectionField::Start {
             Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+                .fg(Color::Green)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Green)

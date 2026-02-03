@@ -1,36 +1,35 @@
 # Cruciverbal
 
-A terminal-based crossword puzzle player written in Rust. Solve crosswords from 15+ providers directly in your terminal.
+A terminal-based crossword puzzle player written in Rust. Solve crosswords puzzles from various providers directly in your terminal.
 
-## Features
-
-- **15 puzzle providers** including Guardian, Washington Post, USA Today, and more
-- **Interactive TUI** with keyboard navigation and word highlighting
-- **Timer and completion tracking** with win detection
-- **Reveal functionality** for hints (letter, word, or full puzzle)
-- **Auto-scrolling** viewport for large puzzles
+- [x] **Puzzle providers** including _Guardian_, _Washington Post_, _USA Today_, and more
+- [x] **Interactive TUI** with keyboard navigation and word highlighting
+- [x] **Timer & Completion tracking** with win detection
+- [x] **Reveal functionality** for hints (letter, word, or full puzzle)
 
 ### Supported Providers
 
-| Provider        | Variants                                                  |
-| --------------- | --------------------------------------------------------- |
-| Lovatts         | Cryptic                                                   |
-| The Guardian    | Cryptic, Everyman, Speedy, Quick, Prize, Weekend, Quiptic |
-| Washington Post | Sunday                                                    |
-| USA Today       | Daily                                                     |
-| Simply Daily    | Regular, Cryptic, Quick                                   |
-| Universal       | Daily                                                     |
-| Daily Pop       | Daily                                                     |
+| Provider                                                        | Variants                                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------- |
+| [Lovatts](./providers/src/providers/lovatts_cryptic.rs)         | Cryptic                                                   |
+| [The Guardian](./providers/src/providers/guardian.rs)           | Cryptic, Everyman, Speedy, Quick, Prize, Weekend, Quiptic |
+| [Washington Post](./providers/src/providers/washington_post.rs) | Sunday                                                    |
+| [USA Today](./providers/src/providers/usa_today.rs)             | Daily                                                     |
+| [Simply Daily](./providers/src/providers/simply_daily.rs)       | Regular, Cryptic, Quick                                   |
+| [Universal](./providers/src/providers/universal.rs)             | Daily                                                     |
+| [Daily Pop](./providers/src/providers/daily_pop.rs)             | Daily                                                     |
 
 ## Installation
 
-### Via Cargo
+Install `cruciverbal` with:
 
 ```bash
 cargo install cruciverbal
 ```
 
 ### From Source
+
+Alternatively, build the crates locally:
 
 ```bash
 git clone https://github.com/erhant/cruciverbal.git
@@ -54,46 +53,14 @@ Or if built from source:
 cargo run -p cruciverbal
 ```
 
-### Keyboard Controls
-
-#### Navigation
-
-| Key           | Action                         |
-| ------------- | ------------------------------ |
-| Arrow keys    | Move between cells             |
-| Shift + Arrow | Jump to next word              |
-| Space         | Toggle direction (Across/Down) |
-
-#### Input
-
-| Key              | Action       |
-| ---------------- | ------------ |
-| A-Z              | Enter letter |
-| Backspace/Delete | Clear cell   |
-
-#### Reveal
-
-| Key          | Action                |
-| ------------ | --------------------- |
-| Ctrl+R       | Reveal current letter |
-| Shift+Ctrl+R | Reveal current word   |
-| Alt+Ctrl+R   | Reveal entire puzzle  |
-
-#### General
-
-| Key    | Action           |
-| ------ | ---------------- |
-| ESC    | Back to menu     |
-| Ctrl+C | Quit application |
-
 ## License
 
 [MIT](./LICENSE)
 
 ## References
 
+The repositories below have been of great help to the development of this project:
+
 - [thisisparker/xword-dl](https://github.com/thisisparker/xword-dl)
 - [thisisparker/cursewords](https://github.com/thisisparker/cursewords)
 - [apexatoll/cliptic](https://github.com/apexatoll/cliptic)
-- [Daily Crossword Links](https://dailycrosswordlinks.com/)
-- [Crossword Fiend](https://crosswordfiend.com/download/)
