@@ -87,7 +87,7 @@ impl App {
             Span::styled(" back", Style::default().fg(preview_theme.dimmed)),
         ]));
 
-        frame.render_widget(Paragraph::new(lines).centered(), centered_area);
+        frame.render_widget(Paragraph::new(lines), centered_area);
     }
 
     pub fn handle_theme_select_input(&mut self, key: KeyEvent) {

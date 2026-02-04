@@ -106,7 +106,7 @@ impl App {
             Span::styled(" quit", Style::default().fg(theme.dimmed)),
         ]));
 
-        frame.render_widget(Paragraph::new(lines).centered(), centered_area);
+        frame.render_widget(Paragraph::new(lines), centered_area);
     }
 
     pub fn handle_menu_input(&mut self, key: KeyEvent) {
