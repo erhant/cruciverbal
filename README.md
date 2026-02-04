@@ -1,5 +1,13 @@
 # Cruciverbal
 
+<!--
+to convert screen-recording to optimized gif:
+
+ffmpeg -i demo.mov -s 600x400 -pix_fmt rgb24 -r 10 -f gif - | gifsicle --optimize=3 --delay=3 > demo.gif
+-->
+
+![demo-gif](./demo.gif)
+
 A terminal-based crossword puzzle player written in Rust. Solve crosswords puzzles from various providers directly in your terminal.
 
 - [x] **Puzzles** from _Guardian_, _Washington Post_, _USA Today_, and more
