@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
     layout::{Constraint, Flex, Layout},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -45,6 +45,7 @@ const HELP_SECTIONS: &[(&str, &[(&str, &str)])] = &[
 impl App {
     pub fn draw_help(&mut self, frame: &mut Frame) {
         let area = frame.area();
+        let theme = self.state.theme;
 
         // Calculate content height: title (1) + blank (1) + sections
         let mut content_height: u16 = 2; // title + blank line
@@ -74,7 +75,7 @@ impl App {
         lines.push(Line::from(Span::styled(
             "━━━ Keyboard Controls ━━━",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.secondary)
                 .add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
@@ -85,17 +86,17 @@ impl App {
             lines.push(Line::from(Span::styled(
                 section_name.to_string(),
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.primary)
                     .add_modifier(Modifier::BOLD),
             )));
 
             // Items
             for (key, description) in *items {
                 lines.push(Line::from(vec![
-                    Span::styled(format!("  {}", key), Style::default().fg(Color::Cyan)),
+                    Span::styled(format!("  {}", key), Style::default().fg(theme.secondary)),
                     Span::styled(
                         format!("  {}", description),
-                        Style::default().fg(Color::DarkGray),
+                        Style::default().fg(theme.dimmed),
                     ),
                 ]));
             }
@@ -105,8 +106,8 @@ impl App {
 
         // Footer
         lines.push(Line::from(vec![
-            Span::styled("ESC", Style::default().fg(Color::Yellow)),
-            Span::styled(" to return", Style::default().fg(Color::DarkGray)),
+            Span::styled("ESC", Style::default().fg(theme.primary)),
+            Span::styled(" to return", Style::default().fg(theme.dimmed)),
         ]));
 
         frame.render_widget(Paragraph::new(lines).centered(), centered_area);

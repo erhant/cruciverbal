@@ -1,11 +1,12 @@
 use ratatui::{
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::Paragraph,
 };
 
 use super::constants::*;
 use super::{ClueNoDirection, Direction, PuzzleCell, WordIdxDirection};
+use crate::theme::Theme;
 
 /// A grid of cells.
 #[derive(Debug)]
@@ -310,10 +311,10 @@ impl PuzzleGrid {
     /// Each cell is 4 characters wide by 4 lines tall. Adjacent cells share borders,
     /// so we only draw the left and top borders for each cell, plus the right and
     /// bottom borders for the last column/row.
-    pub fn to_par(&self) -> Paragraph {
+    pub fn to_par(&self, theme: &Theme) -> Paragraph {
         let num_rows = self.cells.len();
         let num_cols = self.cells[0].len();
-        let border_style = Style::default().fg(Color::White);
+        let border_style = Style::default().fg(theme.grid_border);
 
         // Helper closures for common spans
         let h_span = || Span::styled(BOX_H.to_string(), border_style);
@@ -335,9 +336,9 @@ impl PuzzleGrid {
                 let is_first_col = col_idx == 0;
                 let is_last_col = col_idx == num_cols - 1;
 
-                let val_span = cell.to_val_span();
-                let selection_span = cell.to_selection_span();
-                let (no_span_1, no_span_2, no_span_3) = cell.to_no_spans(border_style);
+                let val_span = cell.to_val_span(theme);
+                let selection_span = cell.to_selection_span(theme);
+                let (no_span_1, no_span_2, no_span_3) = cell.to_no_spans(border_style, theme);
 
                 // Top-left corner: depends on position in grid
                 let tl_corner = match (is_first_row, is_first_col) {
@@ -357,7 +358,7 @@ impl PuzzleGrid {
                 // Content lines (3 lines with left border)
                 if cell.is_filled() {
                     // Filled cells: solid block across all 3 interior positions
-                    let filled = || Span::styled(BOX_FILLED.to_string(), Style::default().fg(Color::White));
+                    let filled = || Span::styled(BOX_FILLED.to_string(), Style::default().fg(theme.filled_cell_fg));
                     span_groups[1].extend([v_span(), filled(), filled(), filled()]);
                     span_groups[2].extend([v_span(), filled(), filled(), filled()]);
                     span_groups[3].extend([v_span(), filled(), filled(), filled()]);
@@ -535,7 +536,7 @@ mod tests {
         ];
 
         let grid = PuzzleGrid::new(cells);
-        let par = grid.to_par();
+        let par = grid.to_par(&crate::theme::DEFAULT);
 
         // create a dummy area for rendering
         let (width, height) = (35, 15);

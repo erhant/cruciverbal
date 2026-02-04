@@ -291,6 +291,7 @@ impl App {
         self.draw_game_playing(frame, false);
 
         let area = frame.area();
+        let theme = self.state.theme;
         let popup_width: u16 = 30;
         let popup_height: u16 = 3;
 
@@ -306,13 +307,13 @@ impl App {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
+            .border_style(Style::default().fg(theme.primary));
         let inner = block.inner(centered_area);
         frame.render_widget(block, centered_area);
 
         frame.render_widget(
             Paragraph::new("Saving...")
-                .style(Style::default().fg(Color::Yellow))
+                .style(Style::default().fg(theme.primary))
                 .centered(),
             inner,
         );
@@ -335,6 +336,7 @@ impl App {
         }
 
         let area = frame.area();
+        let theme = self.state.theme;
 
         // Create centered layout
         let vertical = Layout::vertical([
@@ -355,7 +357,7 @@ impl App {
         let block = Block::default()
             .title(Span::styled(
                 "━━━ Load Game ━━━",
-                Style::default().fg(Color::Cyan),
+                Style::default().fg(theme.secondary),
             ))
             .title_alignment(Alignment::Center);
         let inner_area = block.inner(form_area);
@@ -366,14 +368,14 @@ impl App {
         if let Some(ref error) = load_select.error {
             frame.render_widget(
                 Paragraph::new(error.as_str())
-                    .style(Style::default().fg(Color::Red))
+                    .style(Style::default().fg(theme.error))
                     .centered(),
                 inner_area,
             );
         } else if load_select.saves.is_empty() {
             frame.render_widget(
                 Paragraph::new("No saved games. Use CTRL+S to save.")
-                    .style(Style::default().fg(Color::DarkGray))
+                    .style(Style::default().fg(theme.dimmed))
                     .centered(),
                 inner_area,
             );
@@ -385,10 +387,10 @@ impl App {
                 let is_selected = i == load_select.selected;
                 let style = if is_selected {
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(theme.primary)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(theme.text)
                 };
 
                 let prefix = if is_selected { "▸ " } else { "  " };
@@ -406,14 +408,14 @@ impl App {
         let footer_area =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area)[1];
         let footer = Line::from(vec![
-            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
-            Span::styled(" navigate • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("Enter", Style::default().fg(Color::Yellow)),
-            Span::styled(" load • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("Del", Style::default().fg(Color::Yellow)),
-            Span::styled(" delete • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("ESC", Style::default().fg(Color::Yellow)),
-            Span::styled(" back", Style::default().fg(Color::DarkGray)),
+            Span::styled("↑↓", Style::default().fg(theme.primary)),
+            Span::styled(" navigate • ", Style::default().fg(theme.dimmed)),
+            Span::styled("Enter", Style::default().fg(theme.primary)),
+            Span::styled(" load • ", Style::default().fg(theme.dimmed)),
+            Span::styled("Del", Style::default().fg(theme.primary)),
+            Span::styled(" delete • ", Style::default().fg(theme.dimmed)),
+            Span::styled("ESC", Style::default().fg(theme.primary)),
+            Span::styled(" back", Style::default().fg(theme.dimmed)),
         ]);
         frame.render_widget(Paragraph::new(footer).centered(), footer_area);
 
@@ -429,7 +431,7 @@ impl App {
                     height: 1,
                 };
                 frame.render_widget(
-                    Paragraph::new(msg).style(Style::default().fg(Color::Black).bg(Color::Yellow)),
+                    Paragraph::new(msg).style(Style::default().fg(Color::Black).bg(theme.primary)),
                     notif_area,
                 );
             }
@@ -453,6 +455,7 @@ impl App {
         }
 
         let area = frame.area();
+        let theme = self.state.theme;
 
         // Create centered layout
         let vertical = Layout::vertical([
@@ -473,7 +476,7 @@ impl App {
         let block = Block::default()
             .title(Span::styled(
                 "━━━ Recently Played ━━━",
-                Style::default().fg(Color::Cyan),
+                Style::default().fg(theme.secondary),
             ))
             .title_alignment(Alignment::Center);
         let inner_area = block.inner(form_area);
@@ -484,14 +487,14 @@ impl App {
         if let Some(ref error) = recent_select.error {
             frame.render_widget(
                 Paragraph::new(error.as_str())
-                    .style(Style::default().fg(Color::Red))
+                    .style(Style::default().fg(theme.error))
                     .centered(),
                 inner_area,
             );
         } else if recent_select.games.is_empty() {
             frame.render_widget(
                 Paragraph::new("No recently played games.")
-                    .style(Style::default().fg(Color::DarkGray))
+                    .style(Style::default().fg(theme.dimmed))
                     .centered(),
                 inner_area,
             );
@@ -503,10 +506,10 @@ impl App {
                 let is_selected = i == recent_select.selected;
                 let style = if is_selected {
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(theme.primary)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(theme.text)
                 };
 
                 let prefix = if is_selected { "▸ " } else { "  " };
@@ -524,18 +527,19 @@ impl App {
         let footer_area =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area)[1];
         let footer = Line::from(vec![
-            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
-            Span::styled(" navigate • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("Enter", Style::default().fg(Color::Yellow)),
-            Span::styled(" resume • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("ESC", Style::default().fg(Color::Yellow)),
-            Span::styled(" back", Style::default().fg(Color::DarkGray)),
+            Span::styled("↑↓", Style::default().fg(theme.primary)),
+            Span::styled(" navigate • ", Style::default().fg(theme.dimmed)),
+            Span::styled("Enter", Style::default().fg(theme.primary)),
+            Span::styled(" resume • ", Style::default().fg(theme.dimmed)),
+            Span::styled("ESC", Style::default().fg(theme.primary)),
+            Span::styled(" back", Style::default().fg(theme.dimmed)),
         ]);
         frame.render_widget(Paragraph::new(footer).centered(), footer_area);
     }
 
     fn draw_game_selecting(&mut self, frame: &mut ratatui::Frame) {
         let area = frame.area();
+        let theme = self.state.theme;
 
         // Create centered layout
         let vertical = Layout::vertical([
@@ -556,7 +560,7 @@ impl App {
         let block = Block::default()
             .title(Span::styled(
                 "━━━ New Game ━━━",
-                Style::default().fg(Color::Cyan),
+                Style::default().fg(theme.secondary),
             ))
             .title_alignment(Alignment::Center);
         let inner_area = block.inner(form_area);
@@ -576,10 +580,10 @@ impl App {
         // render date field
         let date_style = if selection.active_field == SelectionField::Date {
             Style::default()
-                .fg(Color::Yellow)
+                .fg(theme.primary)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(theme.text)
         };
         let date_title = if selection.use_latest {
             "Date"
@@ -610,10 +614,10 @@ impl App {
         // render provider field
         let provider_style = if selection.active_field == SelectionField::Provider {
             Style::default()
-                .fg(Color::Yellow)
+                .fg(theme.primary)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(theme.text)
         };
         let provider_block = Block::default()
             .title(Span::styled("Provider", Style::default().dim()))
@@ -636,10 +640,10 @@ impl App {
         // render start button
         let start_style = if selection.active_field == SelectionField::Start {
             Style::default()
-                .fg(Color::Green)
+                .fg(theme.success)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::Green)
+            Style::default().fg(theme.success)
         };
         frame.render_widget(
             Paragraph::new("[ Start Game ]")
@@ -652,7 +656,7 @@ impl App {
         if let Some(ref error) = selection.error {
             frame.render_widget(
                 Paragraph::new(error.as_str())
-                    .style(Style::default().fg(Color::Red))
+                    .style(Style::default().fg(theme.error))
                     .centered(),
                 rows[3],
             );
@@ -662,20 +666,21 @@ impl App {
         let footer_area =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area)[1];
         let footer = Line::from(vec![
-            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
-            Span::styled(" navigate • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("←→", Style::default().fg(Color::Yellow)),
-            Span::styled(" change • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("Enter", Style::default().fg(Color::Yellow)),
-            Span::styled(" confirm • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("ESC", Style::default().fg(Color::Yellow)),
-            Span::styled(" back", Style::default().fg(Color::DarkGray)),
+            Span::styled("↑↓", Style::default().fg(theme.primary)),
+            Span::styled(" navigate • ", Style::default().fg(theme.dimmed)),
+            Span::styled("←→", Style::default().fg(theme.primary)),
+            Span::styled(" change • ", Style::default().fg(theme.dimmed)),
+            Span::styled("Enter", Style::default().fg(theme.primary)),
+            Span::styled(" confirm • ", Style::default().fg(theme.dimmed)),
+            Span::styled("ESC", Style::default().fg(theme.primary)),
+            Span::styled(" back", Style::default().fg(theme.dimmed)),
         ]);
         frame.render_widget(Paragraph::new(footer).centered(), footer_area);
     }
 
     fn draw_game_loading(&mut self, frame: &mut ratatui::Frame) {
         let area = frame.area();
+        let theme = self.state.theme;
 
         let vertical = Layout::vertical([
             Constraint::Min(1),
@@ -699,7 +704,7 @@ impl App {
         };
         frame.render_widget(
             Paragraph::new(loading_text)
-                .style(Style::default().fg(Color::Cyan))
+                .style(Style::default().fg(theme.secondary))
                 .centered(),
             content_area,
         );
@@ -771,7 +776,7 @@ impl App {
         // === GRID ===
         self.state.game.visible_area = (grid_area.width, grid_area.height);
 
-        let mut par = grid.to_par();
+        let mut par = grid.to_par(self.state.theme);
         let (width, height) = (grid_area.width, grid_area.height);
 
         // calculate vertical scroll bounds
@@ -837,15 +842,16 @@ impl App {
         self.draw_clue_bar(frame, bottom_area);
 
         // === FOOTER HINT (at very bottom of screen) ===
+        let theme = self.state.theme;
         let footer_area =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(full_area)[1];
         let footer = Line::from(vec![
-            Span::styled("CTRL+H", Style::default().fg(Color::Yellow)),
-            Span::styled(" help • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("CTRL+S", Style::default().fg(Color::Yellow)),
-            Span::styled(" save • ", Style::default().fg(Color::DarkGray)),
-            Span::styled("ESC", Style::default().fg(Color::Yellow)),
-            Span::styled(" menu", Style::default().fg(Color::DarkGray)),
+            Span::styled("CTRL+H", Style::default().fg(theme.primary)),
+            Span::styled(" help • ", Style::default().fg(theme.dimmed)),
+            Span::styled("CTRL+S", Style::default().fg(theme.primary)),
+            Span::styled(" save • ", Style::default().fg(theme.dimmed)),
+            Span::styled("ESC", Style::default().fg(theme.primary)),
+            Span::styled(" menu", Style::default().fg(theme.dimmed)),
         ]);
         frame.render_widget(Paragraph::new(footer).centered(), footer_area);
 
@@ -861,7 +867,7 @@ impl App {
                 };
                 frame.render_widget(
                     Paragraph::new(" ✓ Saved ")
-                        .style(Style::default().fg(Color::Black).bg(Color::Green)),
+                        .style(Style::default().fg(Color::Black).bg(theme.success)),
                     notif_area,
                 );
             }
@@ -872,6 +878,7 @@ impl App {
     fn draw_top_bar(&self, frame: &mut ratatui::Frame, area: Rect, is_completed: bool) {
         // Use the full area without borders
         let inner = area;
+        let theme = self.state.theme;
 
         let date_str = self.state.game.puzzle_date.as_deref().unwrap_or("No date");
 
@@ -896,16 +903,16 @@ impl App {
             let pct = grid.completion_percentage();
             let style = match self.state.game.completion_state {
                 CompletionState::IncorrectFill => {
-                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                    Style::default().fg(theme.error).add_modifier(Modifier::BOLD)
                 }
                 CompletionState::Correct => Style::default()
-                    .fg(Color::Green)
+                    .fg(theme.success)
                     .add_modifier(Modifier::BOLD),
-                CompletionState::InProgress => Style::default().fg(Color::White),
+                CompletionState::InProgress => Style::default().fg(theme.text),
             };
             (format!("{}%", pct), style)
         } else {
-            ("0%".to_string(), Style::default().fg(Color::White))
+            ("0%".to_string(), Style::default().fg(theme.text))
         };
 
         // Right side: "XX% MM:SS"
@@ -921,9 +928,9 @@ impl App {
         let left_space = (total_width.saturating_sub(title_len)) / 2;
         let right_start = left_space + title_len;
 
-        let dim_style = Style::default().fg(Color::DarkGray);
-        let title_style = Style::default().fg(Color::Cyan);
-        let timer_style = Style::default().fg(Color::Yellow);
+        let dim_style = Style::default().fg(theme.dimmed);
+        let title_style = Style::default().fg(theme.secondary);
+        let timer_style = Style::default().fg(theme.primary);
 
         // Build the line with proper spacing
         let mut spans = vec![Span::styled(date_str, dim_style)];
@@ -965,6 +972,7 @@ impl App {
         self.draw_game_playing(frame, true);
 
         let area = frame.area();
+        let theme = self.state.theme;
 
         // Popup dimensions
         let popup_width: u16 = 40;
@@ -986,7 +994,7 @@ impl App {
         let block = Block::default()
             .title(" Congratulations! ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Green));
+            .border_style(Style::default().fg(theme.success));
         let inner_area = block.inner(centered_area);
         frame.render_widget(block, centered_area);
 
@@ -996,9 +1004,9 @@ impl App {
 
         let selected_style = Style::default()
             .fg(Color::Black)
-            .bg(Color::Yellow)
+            .bg(theme.primary)
             .add_modifier(Modifier::BOLD);
-        let normal_style = Style::default().fg(Color::White);
+        let normal_style = Style::default().fg(theme.text);
 
         let options = ["Continue Playing", "Back to Menu"];
         let option_lines = options.iter().enumerate().map(|(i, opt)| {
@@ -1015,7 +1023,7 @@ impl App {
             Line::from(Span::styled(
                 format!("Puzzle completed in {}!", time_str),
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.primary)
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
@@ -1038,6 +1046,7 @@ impl App {
         let puzzle = self.state.game.puzzle.as_ref()?;
         let (row, col) = self.state.game.sel;
         let cell = grid.get(row, col)?;
+        let theme = self.state.theme;
 
         let direction = self.state.game.active_direction;
 
@@ -1072,10 +1081,10 @@ impl App {
         };
 
         Some(Line::from(vec![
-            Span::styled(clue_no.to_string(), Style::default().fg(Color::Yellow)),
-            Span::styled(dir_char.to_string(), Style::default().fg(Color::Cyan)),
-            Span::styled(": ", Style::default().fg(Color::DarkGray)),
-            Span::styled(clue_text.to_string(), Style::default().fg(Color::White)),
+            Span::styled(clue_no.to_string(), Style::default().fg(theme.primary)),
+            Span::styled(dir_char.to_string(), Style::default().fg(theme.secondary)),
+            Span::styled(": ", Style::default().fg(theme.dimmed)),
+            Span::styled(clue_text.to_string(), Style::default().fg(theme.text)),
         ]))
     }
 

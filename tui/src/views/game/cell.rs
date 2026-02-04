@@ -1,6 +1,7 @@
 use super::constants::*;
+use crate::theme::Theme;
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Style, Stylize},
     text::Span,
 };
 
@@ -214,10 +215,10 @@ impl PuzzleCell {
         }
     }
 
-    pub fn to_val_span(&self) -> Span {
+    pub fn to_val_span(&self, theme: &Theme) -> Span {
         match &self.val {
             PuzzleCellValue::Filled => {
-                Span::styled(BOX_FILLED.to_string(), Style::default().bg(Color::Black))
+                Span::styled(BOX_FILLED.to_string(), Style::default().bg(theme.filled_cell_bg))
             }
             PuzzleCellValue::Letter { user_letter, .. } => match user_letter {
                 Some(c) => Span::raw(c.to_string()),
@@ -230,7 +231,7 @@ impl PuzzleCell {
     ///
     /// A clue number is displayed only at the start of a word (word index 0).
     /// Supports 1-3 digit numbers, filling unused positions with horizontal border.
-    pub fn to_no_spans(&self, border_style: Style) -> (Span, Span, Span) {
+    pub fn to_no_spans(&self, border_style: Style, theme: &Theme) -> (Span, Span, Span) {
         let h_span = || Span::styled(BOX_H.to_string(), border_style);
 
         let PuzzleCellValue::Letter {
@@ -264,9 +265,9 @@ impl PuzzleCell {
         };
 
         let no_style = if self.is_selected_cell {
-            Style::default().fg(Color::Yellow).bold()
+            Style::default().fg(theme.primary).bold()
         } else if self.is_selected_word {
-            Style::default().fg(Color::Cyan).bold()
+            Style::default().fg(theme.secondary).bold()
         } else {
             border_style
         };
@@ -291,11 +292,11 @@ impl PuzzleCell {
         }
     }
 
-    pub fn to_selection_span(&self) -> Span {
+    pub fn to_selection_span(&self, theme: &Theme) -> Span {
         if self.is_selected_cell {
-            Span::raw("^").style(Style::default().fg(Color::Yellow).bold().underlined())
+            Span::raw("^").style(Style::default().fg(theme.primary).bold().underlined())
         } else if self.is_selected_word {
-            Span::raw("_").style(Style::default().fg(Color::Cyan))
+            Span::raw("_").style(Style::default().fg(theme.secondary))
         } else {
             Span::raw(" ")
         }

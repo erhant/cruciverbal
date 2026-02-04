@@ -44,7 +44,9 @@ The project is a Cargo workspace with two crates:
 The main application with state machine architecture:
 
 - `app.rs` - Core event loop at 35 FPS, view management, puzzle download orchestration
-- `save.rs` - Save/load game functionality, stores JSON files in `~/.cruciverbal/saves/`
+- `save.rs` - Save/load game functionality:
+  - Explicit saves: `~/.cruciverbal/saves/`
+  - Auto-saves (on ESC to menu): `~/.cruciverbal/autosaves/` - cleaned up after 7 days
 - `views/menu.rs` - Main menu with navigation
 - `views/help.rs` - Keyboard controls reference
 - `views/game/mod.rs` - Game state, input handling, 3-area layout (top bar, grid, clue bar)
@@ -98,7 +100,7 @@ Run tests with network access as they fetch from live APIs.
 
 - No rebus square support (tui/src/lib.rs:9)
 - Guardian providers only support "latest" mode (no date selection)
-- `tui/src/components/mod.rs` is a placeholder for future UI components
+- `tui/src/components/mod.rs` is an empty placeholder for future UI components
 
 ## Configuration
 

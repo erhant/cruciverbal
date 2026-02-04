@@ -1,6 +1,9 @@
 use crate::{
     game::{GameState, GameView},
     menu::MenuState,
+    preferences,
+    theme::Theme,
+    views::theme_select::ThemeSelectState,
 };
 use color_eyre::eyre::Result;
 use crossterm::event::EventStream;
@@ -11,13 +14,27 @@ pub enum AppView {
     #[default]
     Menu,
     Help,
+    ThemeSelect,
     Game(GameView),
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct AppState {
     pub menu: MenuState,
     pub game: GameState,
+    pub theme: &'static Theme,
+    pub theme_select: ThemeSelectState,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            menu: MenuState::default(),
+            game: GameState::default(),
+            theme: &crate::theme::DEFAULT,
+            theme_select: ThemeSelectState::default(),
+        }
+    }
 }
 
 /// 35 FPS = 1000ms / 35
@@ -44,12 +61,19 @@ impl App {
         // Clean up old auto-saves on startup
         let _ = crate::save::cleanup_old_auto_saves();
 
+        // Load theme from preferences
+        let prefs = preferences::load_preferences();
+        let theme = Theme::by_id(&prefs.theme_id);
+
         Self {
             is_running: false,
             event_stream: EventStream::new(),
             view: AppView::Menu,
             previous_view: None,
-            state: AppState::default(),
+            state: AppState {
+                theme,
+                ..AppState::default()
+            },
         }
     }
 
@@ -223,6 +247,7 @@ impl App {
         match self.view.clone() {
             AppView::Menu => self.draw_menu(frame),
             AppView::Help => self.draw_help(frame),
+            AppView::ThemeSelect => self.draw_theme_select(frame),
             AppView::Game(view) => self.draw_game(view, frame),
         }
     }
@@ -253,6 +278,7 @@ impl App {
                     match self.view.clone() {
                         AppView::Menu => self.handle_menu_input(key),
                         AppView::Help => self.handle_help_input(key),
+                        AppView::ThemeSelect => self.handle_theme_select_input(key),
                         AppView::Game(view) => self.handle_game_input(view, key),
                     }
                 }

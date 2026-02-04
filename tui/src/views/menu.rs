@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
     layout::{Constraint, Flex, Layout},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -21,15 +21,17 @@ pub enum MenuItem {
     RecentlyPlayed,
     LoadGame,
     Help,
+    Theme,
     Exit,
 }
 
 impl MenuItem {
-    pub const ALL: [MenuItem; 5] = [
+    pub const ALL: [MenuItem; 6] = [
         MenuItem::NewGame,
         MenuItem::RecentlyPlayed,
         MenuItem::LoadGame,
         MenuItem::Help,
+        MenuItem::Theme,
         MenuItem::Exit,
     ];
     pub fn fmt(&self) -> String {
@@ -38,6 +40,7 @@ impl MenuItem {
             MenuItem::RecentlyPlayed => "Recently Played".to_string(),
             MenuItem::LoadGame => "Load Game".to_string(),
             MenuItem::Help => "Help".to_string(),
+            MenuItem::Theme => "Theme".to_string(),
             MenuItem::Exit => "Exit".to_string(),
         }
     }
@@ -46,10 +49,11 @@ impl MenuItem {
 impl App {
     pub fn draw_menu(&mut self, frame: &mut Frame) {
         let area = frame.area();
+        let theme = self.state.theme;
 
         // Content dimensions
         let content_width: u16 = 30;
-        // Title (1) + blank (2) + menu items (3) + blank (2) + footer (1)
+        // Title (1) + blank (2) + menu items (6) + blank (2) + footer (1)
         let content_height: u16 = 1 + 2 + MenuItem::ALL.len() as u16 + 2 + 1;
 
         // Center the content
@@ -68,7 +72,7 @@ impl App {
         lines.push(Line::from(Span::styled(
             "━━━ Cruciverbal ━━━",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.secondary)
                 .add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
@@ -78,10 +82,10 @@ impl App {
         for (i, item) in MenuItem::ALL.iter().enumerate() {
             let style = if i == self.state.menu.sel {
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.primary)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(theme.dimmed)
             };
 
             let prefix = if i == self.state.menu.sel { "▸ " } else { "  " };
@@ -96,10 +100,10 @@ impl App {
 
         // Footer - more subtle
         lines.push(Line::from(vec![
-            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
-            Span::styled(" navigate · ", Style::default().fg(Color::DarkGray)),
-            Span::styled("ESC", Style::default().fg(Color::Yellow)),
-            Span::styled(" quit", Style::default().fg(Color::DarkGray)),
+            Span::styled("↑↓", Style::default().fg(theme.primary)),
+            Span::styled(" navigate · ", Style::default().fg(theme.dimmed)),
+            Span::styled("ESC", Style::default().fg(theme.primary)),
+            Span::styled(" quit", Style::default().fg(theme.dimmed)),
         ]));
 
         frame.render_widget(Paragraph::new(lines).centered(), centered_area);
@@ -154,6 +158,15 @@ impl App {
             }
             MenuItem::Help => {
                 self.view = AppView::Help;
+            }
+            MenuItem::Theme => {
+                // Initialize selection to current theme index
+                let current_idx = crate::theme::Theme::ALL
+                    .iter()
+                    .position(|t| t.id == self.state.theme.id)
+                    .unwrap_or(0);
+                self.state.theme_select.selected = current_idx;
+                self.view = AppView::ThemeSelect;
             }
             MenuItem::Exit => {
                 self.quit();
