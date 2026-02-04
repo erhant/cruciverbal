@@ -18,14 +18,16 @@ pub struct MenuState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MenuItem {
     NewGame,
+    RecentlyPlayed,
     LoadGame,
     Help,
     Exit,
 }
 
 impl MenuItem {
-    pub const ALL: [MenuItem; 4] = [
+    pub const ALL: [MenuItem; 5] = [
         MenuItem::NewGame,
+        MenuItem::RecentlyPlayed,
         MenuItem::LoadGame,
         MenuItem::Help,
         MenuItem::Exit,
@@ -33,6 +35,7 @@ impl MenuItem {
     pub fn fmt(&self) -> String {
         match self {
             MenuItem::NewGame => "New Game".to_string(),
+            MenuItem::RecentlyPlayed => "Recently Played".to_string(),
             MenuItem::LoadGame => "Load Game".to_string(),
             MenuItem::Help => "Help".to_string(),
             MenuItem::Exit => "Exit".to_string(),
@@ -134,6 +137,13 @@ impl App {
                 // Reset game state for a new game
                 self.state.game.reset_for_new_game();
                 self.view = AppView::Game(GameView::Selecting);
+            }
+            MenuItem::RecentlyPlayed => {
+                use crate::views::game::GameView;
+
+                // Reset game state and go to recent games selection
+                self.state.game.reset_for_new_game();
+                self.view = AppView::Game(GameView::RecentSelect);
             }
             MenuItem::LoadGame => {
                 use crate::views::game::GameView;

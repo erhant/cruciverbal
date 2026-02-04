@@ -84,12 +84,24 @@ Library for fetching puzzles from external APIs:
 
 **Completion Detection:** `PuzzleGrid::is_fully_correct()` compares user input against solution. Win triggers congratulations popup with time display.
 
+## Testing Strategy
+
+Tests are implemented as inline `#[cfg(test)]` modules within provider files. Each provider has integration tests that verify puzzle downloading:
+
+- **Provider tests:** Located in each `providers/src/providers/*.rs` file
+- **Format tests:** Located in `providers/src/formats/crossword_compiler.rs`
+- **Grid tests:** Located in `tui/src/views/game/grid.rs`
+
+Run tests with network access as they fetch from live APIs.
+
 ## Known Limitations
 
-- No rebus square support (tui/src/lib.rs:10)
+- No rebus square support (tui/src/lib.rs:9)
 - Guardian providers only support "latest" mode (no date selection)
+- `tui/src/components/mod.rs` is a placeholder for future UI components
 
 ## Configuration
 
 - Clippy lint: `uninlined_format_args = "allow"` (tui/Cargo.toml)
 - Workspace shares common dependency versions via `workspace.dependencies`
+- Rust Edition 2024 (requires Rust 1.85+)

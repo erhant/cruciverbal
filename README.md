@@ -2,12 +2,11 @@
 
 A terminal-based crossword puzzle player written in Rust. Solve crosswords puzzles from various providers directly in your terminal.
 
-- [x] **Puzzle providers** including _Guardian_, _Washington Post_, _USA Today_, and more
+- [x] **Puzzles** from _Guardian_, _Washington Post_, _USA Today_, and more
 - [x] **Interactive TUI** with keyboard navigation and word highlighting
 - [x] **Timer & Completion tracking** with win detection
 - [x] **Reveal functionality** for hints (letter, word, or full puzzle)
-
-### Supported Providers
+- [ ] **Auto-saves** that are wiped after a week
 
 | Provider                                                        | Variants                                                  |
 | --------------------------------------------------------------- | --------------------------------------------------------- |

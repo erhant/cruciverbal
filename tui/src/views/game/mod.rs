@@ -38,6 +38,8 @@ pub enum GameView {
     Selecting,
     /// User is selecting a saved game to load.
     LoadSelect,
+    /// User is selecting from recently played games.
+    RecentSelect,
     /// Puzzle is being loaded (either from file or network).
     Loading,
     /// User is saving the current puzzle to file.
@@ -131,6 +133,19 @@ impl Default for LoadSelectState {
     }
 }
 
+/// State for the recent games selection screen.
+#[derive(Debug, Default)]
+pub struct RecentSelectState {
+    /// List of recently played games.
+    pub games: Vec<SaveInfo>,
+    /// Currently selected game index.
+    pub selected: usize,
+    /// Error message to display, if any.
+    pub error: Option<String>,
+    /// Whether the list has been loaded.
+    pub loaded: bool,
+}
+
 impl Default for SelectionState {
     fn default() -> Self {
         // Default to "latest" mode
@@ -175,6 +190,9 @@ pub struct GameState {
     /// State for the load game screen.
     pub load_select: LoadSelectState,
 
+    /// State for the recent games selection screen.
+    pub recent_select: RecentSelectState,
+
     /// Current completion state of the puzzle.
     pub completion_state: CompletionState,
 
@@ -215,6 +233,7 @@ impl Default for GameState {
             start_time: None,
             selection: SelectionState::default(),
             load_select: LoadSelectState::default(),
+            recent_select: RecentSelectState::default(),
             completion_state: CompletionState::default(),
             completion_time: None,
             completed_popup_selection: 0,
@@ -240,6 +259,7 @@ impl GameState {
         self.start_time = None;
         self.selection = SelectionState::default();
         self.load_select = LoadSelectState::default();
+        self.recent_select = RecentSelectState::default();
         self.completion_state = CompletionState::default();
         self.completion_time = None;
         self.completed_popup_selection = 0;
@@ -259,6 +279,7 @@ impl App {
             GameView::CompletedPlaying => self.draw_game_playing(frame, true),
             GameView::Selecting => self.draw_game_selecting(frame),
             GameView::LoadSelect => self.draw_game_load_select(frame),
+            GameView::RecentSelect => self.draw_game_recent_select(frame),
             GameView::Loading => self.draw_game_loading(frame),
             GameView::Completed => self.draw_game_completed(frame),
             GameView::Saving => self.draw_game_saving(frame),
@@ -351,7 +372,7 @@ impl App {
             );
         } else if load_select.saves.is_empty() {
             frame.render_widget(
-                Paragraph::new("No saved games found.")
+                Paragraph::new("No saved games. Use CTRL+S to save.")
                     .style(Style::default().fg(Color::DarkGray))
                     .centered(),
                 inner_area,
@@ -413,6 +434,104 @@ impl App {
                 );
             }
         }
+    }
+
+    fn draw_game_recent_select(&mut self, frame: &mut ratatui::Frame) {
+        // Load recent games list if not loaded
+        if !self.state.game.recent_select.loaded {
+            match save::list_autosaves() {
+                Ok(games) => {
+                    self.state.game.recent_select.games = games;
+                    self.state.game.recent_select.error = None;
+                }
+                Err(e) => {
+                    self.state.game.recent_select.error =
+                        Some(format!("Failed to list recent games: {}", e));
+                }
+            }
+            self.state.game.recent_select.loaded = true;
+        }
+
+        let area = frame.area();
+
+        // Create centered layout
+        let vertical = Layout::vertical([
+            Constraint::Min(1),     // Top padding
+            Constraint::Length(16), // Content area
+            Constraint::Min(1),     // Bottom padding
+        ]);
+        let [_, content_area, _] = vertical.areas(area);
+
+        let horizontal = Layout::horizontal([
+            Constraint::Min(1),     // Left padding
+            Constraint::Length(50), // Form area
+            Constraint::Min(1),     // Right padding
+        ]);
+        let [_, form_area, _] = horizontal.areas(content_area);
+
+        // Draw the main block
+        let block = Block::default()
+            .title(Span::styled(
+                "━━━ Recently Played ━━━",
+                Style::default().fg(Color::Cyan),
+            ))
+            .title_alignment(Alignment::Center);
+        let inner_area = block.inner(form_area);
+        frame.render_widget(block, form_area);
+
+        let recent_select = &self.state.game.recent_select;
+
+        if let Some(ref error) = recent_select.error {
+            frame.render_widget(
+                Paragraph::new(error.as_str())
+                    .style(Style::default().fg(Color::Red))
+                    .centered(),
+                inner_area,
+            );
+        } else if recent_select.games.is_empty() {
+            frame.render_widget(
+                Paragraph::new("No recently played games.")
+                    .style(Style::default().fg(Color::DarkGray))
+                    .centered(),
+                inner_area,
+            );
+        } else {
+            // List recent games
+            let mut lines: Vec<Line> = Vec::new();
+
+            for (i, game_info) in recent_select.games.iter().enumerate() {
+                let is_selected = i == recent_select.selected;
+                let style = if is_selected {
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+
+                let prefix = if is_selected { "▸ " } else { "  " };
+                let line = format!(
+                    "{}{} - {} ({}%)",
+                    prefix, game_info.date, game_info.provider, game_info.completion_pct
+                );
+                lines.push(Line::from(Span::styled(line, style)));
+            }
+
+            frame.render_widget(Paragraph::new(lines), inner_area);
+        }
+
+        // Footer with instructions
+        let footer_area =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area)[1];
+        let footer = Line::from(vec![
+            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
+            Span::styled(" navigate • ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Enter", Style::default().fg(Color::Yellow)),
+            Span::styled(" resume • ", Style::default().fg(Color::DarkGray)),
+            Span::styled("ESC", Style::default().fg(Color::Yellow)),
+            Span::styled(" back", Style::default().fg(Color::DarkGray)),
+        ]);
+        frame.render_widget(Paragraph::new(footer).centered(), footer_area);
     }
 
     fn draw_game_selecting(&mut self, frame: &mut ratatui::Frame) {
@@ -865,7 +984,7 @@ impl App {
 
         // Draw popup border
         let block = Block::default()
-            .title("━━━ Congratulations! ━━━")
+            .title(" Congratulations! ")
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Green));
         let inner_area = block.inner(centered_area);
@@ -964,6 +1083,7 @@ impl App {
         match view {
             GameView::Selecting => self.handle_selecting_input(key),
             GameView::LoadSelect => self.handle_load_select_input(key),
+            GameView::RecentSelect => self.handle_recent_select_input(key),
             GameView::Loading => {
                 // ESC cancels loading and goes back to menu
                 if key.code == KeyCode::Esc {
@@ -1058,6 +1178,85 @@ impl App {
         }
     }
 
+    fn handle_recent_select_input(&mut self, key: KeyEvent) {
+        use crate::AppView;
+
+        match key.code {
+            KeyCode::Esc => {
+                self.view = AppView::Menu;
+            }
+            KeyCode::Up => {
+                if self.state.game.recent_select.selected > 0 {
+                    self.state.game.recent_select.selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                let len = self.state.game.recent_select.games.len();
+                if len > 0 && self.state.game.recent_select.selected < len - 1 {
+                    self.state.game.recent_select.selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                self.load_selected_recent_game();
+            }
+            _ => {}
+        }
+    }
+
+    fn load_selected_recent_game(&mut self) {
+        use crate::AppView;
+
+        let selected = self.state.game.recent_select.selected;
+        let games = &self.state.game.recent_select.games;
+
+        if selected >= games.len() {
+            return;
+        }
+
+        let save_path = games[selected].path.clone();
+
+        match save::load_game(&save_path) {
+            Ok(game_save) => {
+                // Restore the game state from save
+                self.state.game.puzzle = Some(game_save.puzzle.clone());
+                self.state.game.puzzle_date = Some(game_save.puzzle_date);
+                self.state.game.provider_idx = Some(game_save.provider_idx);
+                self.state.game.sel = game_save.sel;
+                self.state.game.active_direction = game_save.active_direction;
+                self.state.game.completion_state = game_save.completion_state;
+
+                // Build grid from puzzle solution
+                let mut grid = PuzzleGrid::from_solution(&game_save.puzzle.grid.solution);
+
+                // Apply user letters
+                for (row_idx, row) in game_save.user_letters.iter().enumerate() {
+                    for (col_idx, letter) in row.iter().enumerate() {
+                        if let Some(cell) = grid.get_mut(row_idx, col_idx) {
+                            cell.set_user_letter(*letter);
+                        }
+                    }
+                }
+
+                // Set selection
+                let (row, col) = game_save.sel;
+                grid.set_selection(row, col, game_save.active_direction);
+
+                self.state.game.grid = Some(grid);
+
+                // Restore timer: set start_time to now minus elapsed seconds
+                let elapsed = Duration::from_secs(game_save.elapsed_secs);
+                self.state.game.start_time = Some(Instant::now() - elapsed);
+
+                self.view = AppView::Game(GameView::Playing);
+            }
+            Err(e) => {
+                // Refresh list and show error
+                self.state.game.recent_select.loaded = false;
+                self.state.game.recent_select.error = Some(format!("Failed to load: {}", e));
+            }
+        }
+    }
+
     fn delete_selected_save(&mut self) {
         let selected = self.state.game.load_select.selected;
         let saves = &self.state.game.load_select.saves;
@@ -1107,14 +1306,16 @@ impl App {
                         self.view = AppView::Game(GameView::CompletedPlaying);
                     }
                     1 => {
-                        // Back to Menu
+                        // Back to Menu (auto-save first)
+                        self.auto_save_current_game();
                         self.view = AppView::Menu;
                     }
                     _ => {}
                 }
             }
             KeyCode::Esc => {
-                // ESC also goes back to menu
+                // ESC also goes back to menu (auto-save first)
+                self.auto_save_current_game();
                 self.view = AppView::Menu;
             }
             _ => {}
@@ -1125,7 +1326,10 @@ impl App {
         use crate::AppView;
 
         match key.code {
-            KeyCode::Esc => self.view = AppView::Menu,
+            KeyCode::Esc => {
+                self.auto_save_current_game();
+                self.view = AppView::Menu;
+            }
             KeyCode::Char(' ') => self.toggle_direction(),
             KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right => {
                 self.handle_arrow_navigation(key);
@@ -1322,9 +1526,10 @@ impl App {
         }
 
         match key.code {
-            // ESC: go back to menu
+            // ESC: go back to menu (auto-save first)
             KeyCode::Esc => {
                 use crate::AppView;
+                self.auto_save_current_game();
                 self.view = AppView::Menu;
             }
 
@@ -1770,7 +1975,8 @@ impl App {
     }
 
     /// Save the current game to disk.
-    fn save_current_game(&mut self) {
+    /// Save the current game. If `is_auto_save` is true, marks as auto-save.
+    fn save_current_game_inner(&mut self, is_auto_save: bool) {
         let Some(puzzle) = self.state.game.puzzle.as_ref() else {
             return;
         };
@@ -1809,6 +2015,11 @@ impl App {
             .unwrap_or("Unknown")
             .to_string();
 
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
         let game_save = save::GameSave {
             version: 1,
             puzzle_date: self
@@ -1825,12 +2036,27 @@ impl App {
             sel: self.state.game.sel,
             active_direction: self.state.game.active_direction,
             completion_state: self.state.game.completion_state,
+            is_auto_save,
+            saved_at: now,
         };
 
         // Save to disk and show notification on success
         if save::save_game(&game_save).is_ok() {
-            // Show notification for 2 seconds
-            self.state.game.save_notification_until = Some(Instant::now() + Duration::from_secs(2));
+            // Show notification for 2 seconds (only for explicit saves)
+            if !is_auto_save {
+                self.state.game.save_notification_until =
+                    Some(Instant::now() + Duration::from_secs(2));
+            }
         }
+    }
+
+    /// Explicitly save the current game (CTRL+S).
+    fn save_current_game(&mut self) {
+        self.save_current_game_inner(false);
+    }
+
+    /// Auto-save the current game (when exiting to menu).
+    fn auto_save_current_game(&mut self) {
+        self.save_current_game_inner(true);
     }
 }

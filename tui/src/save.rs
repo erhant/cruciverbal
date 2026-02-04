@@ -1,6 +1,6 @@
 //! Save/Load game functionality.
 //!
-//! Saves are stored as JSON files in `~/.cruciverbal/saves/` with naming `{date}_{provider}.json`.
+//! Explicit saves go to `~/.cruciverbal/saves/`, auto-saves go to `~/.cruciverbal/autosaves/`.
 
 use crate::views::game::{CompletionState, Direction};
 use serde::{Deserialize, Serialize};
@@ -43,12 +43,24 @@ pub struct GameSave {
     pub active_direction: Direction,
     /// Completion state at save time.
     pub completion_state: CompletionState,
+    /// Whether this was an auto-save (ESC to menu) vs explicit save (CTRL+S).
+    #[serde(default)]
+    pub is_auto_save: bool,
+    /// Timestamp when saved (Unix epoch seconds).
+    #[serde(default)]
+    pub saved_at: u64,
 }
 
 /// Get the saves directory path (`~/.cruciverbal/saves/`).
 pub fn saves_dir() -> Result<PathBuf, SaveError> {
     let home = dirs::home_dir().ok_or(SaveError::NoHomeDir)?;
     Ok(home.join(".cruciverbal").join("saves"))
+}
+
+/// Get the auto-saves directory path (`~/.cruciverbal/autosaves/`).
+pub fn autosaves_dir() -> Result<PathBuf, SaveError> {
+    let home = dirs::home_dir().ok_or(SaveError::NoHomeDir)?;
+    Ok(home.join(".cruciverbal").join("autosaves"))
 }
 
 /// Generate a filename for a save: `{date}_{provider-slug}.json`.
@@ -63,8 +75,13 @@ fn generate_filename(date: &str, provider_name: &str) -> String {
 /// Save a game to disk.
 ///
 /// Returns the path where the save was written.
+/// Explicit saves go to `~/.cruciverbal/saves/`, auto-saves go to `~/.cruciverbal/autosaves/`.
 pub fn save_game(save: &GameSave) -> Result<PathBuf, SaveError> {
-    let dir = saves_dir()?;
+    let dir = if save.is_auto_save {
+        autosaves_dir()?
+    } else {
+        saves_dir()?
+    };
     std::fs::create_dir_all(&dir)?;
 
     let filename = generate_filename(&save.puzzle_date, &save.provider_name);
@@ -105,19 +122,29 @@ pub struct SaveInfo {
     pub completion_pct: u8,
 }
 
-/// List all saved games.
+/// List all saved games (explicit saves only).
 ///
 /// Returns a vector of save info sorted by modification time (newest first).
 pub fn list_saves() -> Result<Vec<SaveInfo>, SaveError> {
-    let dir = saves_dir()?;
+    list_saves_in_dir(&saves_dir()?)
+}
 
+/// List all auto-saves (for Recently Played).
+///
+/// Returns a vector of save info sorted by modification time (newest first).
+pub fn list_autosaves() -> Result<Vec<SaveInfo>, SaveError> {
+    list_saves_in_dir(&autosaves_dir()?)
+}
+
+/// List all saves in a directory.
+fn list_saves_in_dir(dir: &Path) -> Result<Vec<SaveInfo>, SaveError> {
     if !dir.exists() {
         return Ok(Vec::new());
     }
 
     let mut saves: Vec<(SaveInfo, std::time::SystemTime)> = Vec::new();
 
-    for entry in std::fs::read_dir(&dir)? {
+    for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
 
@@ -164,4 +191,41 @@ fn calculate_completion_pct(user_letters: &[Vec<Option<char>>]) -> u8 {
 pub fn delete_save(path: &Path) -> Result<(), SaveError> {
     std::fs::remove_file(path)?;
     Ok(())
+}
+
+/// Delete auto-saves older than 7 days.
+///
+/// Returns the number of deleted saves.
+pub fn cleanup_old_auto_saves() -> Result<usize, SaveError> {
+    let dir = autosaves_dir()?;
+    if !dir.exists() {
+        return Ok(0);
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let seven_days_secs: u64 = 7 * 24 * 60 * 60;
+    let cutoff = now.saturating_sub(seven_days_secs);
+
+    let mut deleted = 0;
+
+    for entry in std::fs::read_dir(&dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.extension().map_or(false, |e| e == "json") {
+            if let Ok(save) = load_game(&path) {
+                // Delete auto-saves older than 7 days
+                if save.saved_at > 0 && save.saved_at < cutoff {
+                    if delete_save(&path).is_ok() {
+                        deleted += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(deleted)
 }

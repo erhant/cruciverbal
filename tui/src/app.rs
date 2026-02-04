@@ -41,6 +41,9 @@ pub struct App {
 impl App {
     /// Construct a new instance of [`App`].
     pub fn new() -> Self {
+        // Clean up old auto-saves on startup
+        let _ = crate::save::cleanup_old_auto_saves();
+
         Self {
             is_running: false,
             event_stream: EventStream::new(),
