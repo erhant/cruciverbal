@@ -6,7 +6,7 @@ A terminal-based crossword puzzle player written in Rust. Solve crosswords puzzl
 - [x] **Interactive TUI** with keyboard navigation and word highlighting
 - [x] **Timer & Completion tracking** with win detection
 - [x] **Reveal functionality** for hints (letter, word, or full puzzle)
-- [ ] **Auto-saves** that are wiped after a week
+- [x] **Auto-saves** that are wiped after a week
 
 | Provider                                                        | Variants                                                  |
 | --------------------------------------------------------------- | --------------------------------------------------------- |
@@ -46,10 +46,10 @@ Run the application:
 cruciverbal
 ```
 
-Or if built from source:
+Alternatively, if built from source:
 
 ```bash
-cargo run -p cruciverbal
+cargo run
 ```
 
 - Once `cruciverbal` starts, at the main menu, you can select <kbd>New Game</kbd> and select a date & provider to start a new game. All recently played games will be shown at <kbd>Recently Played</kbd>.
@@ -62,10 +62,6 @@ cargo run -p cruciverbal
 
 Enjoy!
 
-## License
-
-[MIT](./LICENSE)
-
 ## References
 
 The repositories below have been of great help to the development of this project:
@@ -73,3 +69,7 @@ The repositories below have been of great help to the development of this projec
 - [thisisparker/xword-dl](https://github.com/thisisparker/xword-dl)
 - [thisisparker/cursewords](https://github.com/thisisparker/cursewords)
 - [apexatoll/cliptic](https://github.com/apexatoll/cliptic)
+
+## License
+
+[MIT](./LICENSE)
