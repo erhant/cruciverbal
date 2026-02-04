@@ -23,7 +23,7 @@ A terminal-based crossword puzzle player written in Rust. Solve crosswords puzzl
 Install `cruciverbal` with:
 
 ```bash
-cargo install cruciverbal
+cargo install --git https://github.com/erhant/cruciverbal.git
 ```
 
 ### From Source
@@ -51,6 +51,16 @@ Or if built from source:
 ```bash
 cargo run -p cruciverbal
 ```
+
+- Once `cruciverbal` starts, at the main menu, you can select <kbd>New Game</kbd> and select a date & provider to start a new game. All recently played games will be shown at <kbd>Recently Played</kbd>.
+
+- You can save a game with <kbd>CTRL+S</kbd> while playing a game, and you can continue from that save at <kbd>Load Game</kbd> menu.
+
+- There are some handy commands while playing, such as navigation & letter reveals, you can see them with <kbd>CTRL+H</kbd> or the <kbd>Help</kbd> menu.
+
+- You can change the color theme from <kbd>Theme</kbd> menu.
+
+Enjoy!
 
 ## License
 
